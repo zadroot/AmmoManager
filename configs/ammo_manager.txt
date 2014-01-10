@@ -1,0 +1,72 @@
+// Ammo Manager by Root.
+// A few generic notes:
+// -Grenades are NOT supported.
+// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined below).
+// Notes about configuration:
+// 1) Add weapon classname (without 'weapon_' prefix) at a new line.
+// 2) Then add a maximum clip size for this weapon (not working at the moment). Set to 0 if you dont know default value.
+// 3) Add desired maximum ammo for this weapon.
+// Example: m4a1;30;120 will set 120 ammo for m4a1. Symbol ; is case sensitive in config!
+
+// List of CS:S/CS:GO weapons and its settings.
+// Rifles
+famas;25;90
+m4a1;30;90 // To set m4a1-s ammo settings add "ammo_556mm_small_max <amount>" in server.cfg
+galilar;35;90
+ak47;30;90
+ssg08;10;90
+aug;30;90
+sg556;30;90
+awp;10;30
+scar20;20;90
+g3sg1;20;90
+
+// SMG's
+mp9;30;120
+mac10;30;100
+mp7;30;120
+ump45;25;100
+p90;50;100
+bizon;64;120
+
+// Heavy
+nova;8;32
+xm1014;7;32
+mag7;5;32
+sawedoff;7;32
+m249;100;200
+negev;150;200
+
+// Pistols
+glock;20;120
+p250;13;52
+fiveseven;20;100
+deagle;7;35
+elite;30;120
+hkp2000;13;52 // To set usp-s ammo settings add "ammo_357sig_small_max <amount>" in server.cfg
+tek9;32;120
+
+// List of DoD:S weapons and its settings.
+// Rifles
+garand;8;80
+k98;5;60
+spring;5;50
+k98_scoped;5;60
+
+// SMG's
+thompson;30;180
+mp40;30;180
+bar;20;240
+mp44;30;180
+
+// Heavy
+30cal;150;300
+mg42;250;250
+bazooka;1;4
+pschreck;1;4
+
+// Pistols
+colt;7;14
+p38;8;16
+m1carbine;15;30
+c96;20;40
