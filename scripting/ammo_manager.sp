@@ -23,10 +23,10 @@ enum weapontype
 	pickup
 };
 
-enum ammotype
+enum ammotype // for trie array
 {
-	clipsize, // clip size (array)
-	ammosize  // stored ammo size
+	clipsize, // clip size
+	ammosize  // reserved ammo
 };
 
 // Ammo setup convars for CS:S and CS:GO
@@ -53,7 +53,7 @@ new	Handle:WeaponsTrie,
 	ammosetup[sizeof(ammocvars)], // array to store original ammo settings
 	m_iAmmo, m_hMyWeapons, m_hOwner, // datamap offsets
 	m_iClip1, m_iClip2, m_iPrimaryAmmoType,
-	m_iSecondaryAmmoType, MAXWEAPONS; // MAXWEAPONS is needed for m_hMyWeapons array datamap
+	m_iSecondaryAmmoType, MAXWEAPONS; // MAXWEAPONS for m_hMyWeapons array datamap
 
 // ====[ PLUGIN ]===================================================
 public Plugin:myinfo =
@@ -72,7 +72,7 @@ public Plugin:myinfo =
  * ----------------------------------------------------------------- */
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
-	// Mark GetEngineVersion as optional native due to older SM version and GetEngineVersionCompat() stock
+	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
 	MarkNativeAsOptional("GetEngineVersion");
 	return APLRes_Success;
 }
@@ -87,11 +87,11 @@ public OnPluginStart()
 	CreateConVar("sm_ammo_manager_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
 	// Register ConVars without using global handles
-	decl Handle:registar; // Hook ConVar changes and set global booleans when convar is just created (KyleS method).
-	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Global Ammo Manager", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
+	decl Handle:registar; // Hook ConVar changes and set global booleans when convar is just created (a KyleS method)
+	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set weapon clip sizes",      FCVAR_PLUGIN, true, 0.0, true, 0.0)), OnConVarChange); saveclips     = GetConVarBool(registar); // Not yet supported
 	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism mode for ammo",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
 	CloseHandle(registar); // I HATE Handles (c) KyleS
 
 	// Find and store property offsets, because those will be used a bit often
@@ -150,7 +150,7 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 	// Now compare names to properly set global booleans
 	switch (cvarName[11])
 	{
-		// First one is about to enable/disable plugin
+		// First cvar is about to toggle plugin
 		case 'b': RestoreAmmoSetup(bool:StringToInt(newValue));
 		case 'c': saveclips      = bool:StringToInt(newValue);
 		case 'e': reserveammo    = bool:StringToInt(newValue);
@@ -164,7 +164,7 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
  * ----------------------------------------------------------------- */
 public OnAmmoSettingsChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
-	// If plugin is enabled and its should set reserved ammo, rest value to 0
+	// If plugin is enabled and its should set reserved ammo, reset changed value to 0
 	if (enabled && reserveammo) SetConVarBool(convar, false);
 }
 
@@ -190,7 +190,7 @@ public OnMapStart()
 		// Read every line in config
 		while (ReadFileLine(file, fileline, PLATFORM_MAX_PATH))
 		{
-			// Break ; symbols from config (javalia method!)
+			// Break ; symbols from config (javalia method)
 			if (ExplodeString(fileline, ";", datas, sizeof(datas), PLATFORM_MAX_PATH) == 3)
 			{
 				// And properly setup clip and ammo values
@@ -310,7 +310,7 @@ public Action:OnWeaponReloaded(weapon)
 {
 	// Retrieve weapon classname
 	decl String:classname[32], clipnammo[3];
-	GetEdictClassname(weapon, classname, sizeof(classname));
+	GetEdictClassname(weapon,  classname, sizeof(classname));
 
 	// Make sure this weapon is exists in Weapons Trie
 	if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, sizeof(clipnammo)))
@@ -373,15 +373,15 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	new currammo = GetEntData(client, m_iAmmo + (WeaponID * 4));
 	//new realclip;
 
-	// Does weapon is reloading at the moment
+	// Does weapon is reloading at the moment?
 	if (GetEntProp(weapon, Prop_Data, "m_bInReload"))
 	{
 		//realclip = GetEntData(weapon, m_iClip1);
 
-		// If weapon is reloading and realistic reload is set, make sure player is got any more ammo
+		// If realistic reload is set, also make sure player is got any more ammo to...
 		if (realismreload && currammo)
 		{
-			// Everything is correct - reset weapon clip to make reloading a bit more realistic
+			// ... to reset weapon clip (aka throw it), it makes reloading a bit more realistic
 			SetEntData(weapon, m_iClip1, 0);
 			return Plugin_Stop;
 		}
@@ -411,7 +411,7 @@ SetWeaponClip(weapon, type)
 	{
 		// Retrieve weapon classname
 		decl String:classname[32], clipnammo[3];
-		GetEdictClassname(weapon, classname, sizeof(classname));
+		GetEdictClassname(weapon,  classname, sizeof(classname));
 
 		// Does this weapon is exists in weapons trie?
 		if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, sizeof(clipnammo)))
@@ -436,7 +436,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 	if (reserveammo && IsValidEdict(weapon))
 	{
 		decl String:classname[32], clipnammo[3];
-		GetEdictClassname(weapon, classname, sizeof(classname));
+		GetEdictClassname(weapon,  classname, sizeof(classname));
 
 		if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, sizeof(clipnammo)))
 		{
@@ -471,7 +471,7 @@ RestoreAmmoSetup(bool:toggle)
 			// Loop through all ammo convars
 			for (new i; i < sizeof(ammocvars); i++)
 			{
-				// Set ammo cvar values to 0 if plugin is enabled, otherwise set cached value for this convar
+				// Set ammo cvar values to 0 if plugin is enabled, otherwise set cached values for all cstrike convars
 				SetConVarInt(FindConVar(ammocvars[i]), enabled ? 0 : ammosetup[i]);
 			}
 		}

@@ -1,8 +1,8 @@
 // Ammo Manager by Root.
-// A few generic notes:
-// -Grenades are NOT supported.
+// Notes:
 // -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined below).
-// Notes about configuration:
+// -In CS:S and CS:GO you need to setup grenades ammunition as well via ammo_grenade_limit_* console variables.
+// HOWTO:
 // 1) Add weapon classname (without 'weapon_' prefix) at a new line.
 // 2) Then add a maximum clip size for this weapon (not working at the moment). Set to 0 if you dont know default value.
 // 3) Add desired maximum ammo for this weapon.
@@ -13,9 +13,12 @@
 famas;25;90
 m4a1;30;90 // To set m4a1-s ammo settings add "ammo_556mm_small_max <amount>" in server.cfg
 galilar;35;90
+galil;35;90 // CS:S
 ak47;30;90
 ssg08;10;90
 aug;30;90
+sg550;20;90 // CS:S
+sg552;30;90 // CS:S
 sg556;30;90
 awp;10;30
 scar20;20;90
@@ -24,13 +27,16 @@ g3sg1;20;90
 // SMG's
 mp9;30;120
 mac10;30;100
+mp5navy;30;120 // CS:S
 mp7;30;120
 ump45;25;100
+tmp;30;120 // CS:S
 p90;50;100
 bizon;64;120
 
 // Heavy
 nova;8;32
+m3;8;32 // CS:S
 xm1014;7;32
 mag7;5;32
 sawedoff;7;32
@@ -45,6 +51,7 @@ deagle;7;35
 elite;30;120
 hkp2000;13;52 // To set usp-s ammo settings add "ammo_357sig_small_max <amount>" in server.cfg
 tek9;32;120
+usp;12;100 // CS:S
 
 // List of DoD:S weapons and its settings.
 // Rifles
@@ -70,3 +77,11 @@ colt;7;14
 p38;8;16
 m1carbine;15;30
 c96;20;40
+
+// Grenades
+smoke_us;1;1
+smoke_ger;1;1
+//frag_us;1;2
+//frag_ger;1;2
+riflegren_us;1;1 // 1 is actually equal to 2
+riflegren_ger;1;1
