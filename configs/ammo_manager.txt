@@ -1,13 +1,13 @@
 // Ammo Manager by Root.
 // Notes:
-// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined below).
+// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined around their classnames).
 // -In both CS:S and CS:GO you need to setup grenades ammunition as well via ammo_grenade_limit_* console variables.
-// Otherwise if you will set different values for those grenades, you will get X grenades at once on buy/pickup!
-// HOWTO:
+// Otherwise if you will set different values for those grenades, you will get X grenades at once on buy / pickup!
+// HOWTOSETUP?!:
 // 1) Add weapon classname (without 'weapon_' prefix) at a new line.
-// 2) Then add a maximum clip size for this weapon (not working at the moment). Set to 0 if you dont know default value.
-// 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo cvars)
-// Example: m4a1;30;120 will set 120 ammo for m4a1. Symbol ; is case sensitive in config!
+// 2) Then add a maximum clip size for this weapon (still buggy, should set less than original). Set to 0 if you dont know default value.
+// 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo cvars override).
+// Example: ak47;30;120 will set 120 ammo for ak47. Symbol ; is case sensitive in config!
 
 // List of CS:S/CS:GO weapons and its settings.
 // Rifles
@@ -55,11 +55,11 @@ tec9;32;120
 usp;12;100 // CS:S
 
 // Grenades/Other
-hegrenade;1;1
-flashbang;1;0 // Use 0 to setup default limits for max. amount of flashbangs
-smokegrenade;1;1
-molotov;1;1
-decoy;1;1
+//hegrenade;1;1
+//flashbang;1;0 // Use 0 to setup default limits for max. amount of flashbangs
+//smokegrenade;1;1
+//molotov;1;1
+//decoy;1;1
 taser;1;0
 
 // List of DoD:S weapons and its settings.
