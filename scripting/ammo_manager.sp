@@ -4,7 +4,7 @@
 * Description:
 *   Allows to setup different ammo settings (clips and reserved ammo) for every weapon.
 *
-* Version 0.1 Beta
+* Version 0.2 Beta
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -14,7 +14,7 @@
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "0.1 Beta"
+#define PLUGIN_VERSION "0.2 Beta"
 
 enum weapontype
 {
@@ -23,7 +23,7 @@ enum weapontype
 	pickup
 };
 
-enum ammotype // for trie array
+enum ammotype
 {
 	clipsize, // clip size
 	ammosize  // reserved ammo
@@ -46,14 +46,12 @@ static const String:ammocvars[][] =
 
 // ====[ VARIABLES ]================================================
 new	Handle:WeaponsTrie,
-	bool:enabled, // Global booleans to use (instead of global handles)
-	bool:saveclips,
-	bool:reserveammo,
-	bool:realismreload,
 	ammosetup[sizeof(ammocvars)], // array to store original ammo settings
+	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
+	bool:reserveammo, bool:realismreload,
 	m_iAmmo, m_hMyWeapons, m_hOwner, // datamap offsets
 	m_iClip1, m_iClip2, m_iPrimaryAmmoType,
-	m_iSecondaryAmmoType, MAXWEAPONS; // MAXWEAPONS for m_hMyWeapons array datamap
+	m_iSecondaryAmmoType, MAXWEAPONS; // MAXWEAPONS needed for m_hMyWeapons array datamap
 
 // ====[ PLUGIN ]===================================================
 public Plugin:myinfo =
@@ -74,7 +72,6 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
 	MarkNativeAsOptional("GetEngineVersion");
-	return APLRes_Success;
 }
 
 /* OnPluginStart()
@@ -89,7 +86,7 @@ public OnPluginStart()
 	// Register ConVars without using global handles
 	decl Handle:registar; // Hook ConVar changes and set global booleans when convar is just created (a KyleS method)
 	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set weapon clip sizes",      FCVAR_PLUGIN, true, 0.0, true, 0.0)), OnConVarChange); saveclips     = GetConVarBool(registar); // Not yet supported
+	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set weapon clip sizes",      FCVAR_PLUGIN, true, 0.0, true, 0.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
 	CloseHandle(registar); // I HATE Handles (c) KyleS
@@ -106,7 +103,7 @@ public OnPluginStart()
 	// I wouldn't use this event, but its required to setup reserved ammunition correctly
 	HookEvent("player_spawn", OnPlayerSpawn);
 
-	// Thanks to Powerlord for this
+	// Thanks to Powerlord for this!
 	new EngineVersion:version = GetEngineVersionCompat();
 	switch (version)
 	{
@@ -116,7 +113,6 @@ public OnPluginStart()
 			// Set MAXWEAPONS value for CS:S to 48 and 64 for CS:GO
 			MAXWEAPONS = (version == Engine_CSS ? 48 : 64);
 
-			// Loop through all convars
 			for (new i; i < sizeof(ammocvars); i++)
 			{
 				// Cache default convar value
@@ -190,7 +186,7 @@ public OnMapStart()
 		// Read every line in config
 		while (ReadFileLine(file, fileline, PLATFORM_MAX_PATH))
 		{
-			// Break ; symbols from config (javalia method)
+			// Break ; symbols from config (javalia's method)
 			if (ExplodeString(fileline, ";", datas, sizeof(datas), PLATFORM_MAX_PATH) == 3)
 			{
 				// And properly setup clip and ammo values
@@ -251,7 +247,7 @@ public OnWeaponSpawned(weapon)
  * ----------------------------------------------------------------- */
 public OnClientPutInServer(client)
 {
-	// Pretty obviously to comment :)
+	// Pretty obviously to comment
 	SDKHook(client, SDKHook_WeaponDropPost,  OnWeaponDropPost);
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
@@ -333,7 +329,7 @@ public Action:OnWeaponReloaded(weapon)
 		}
 
 		// If realistic reload is set and player wants to reload garand, set garand clip size to 0 (DoD:S perks)
-		if (realismreload && StrEqual(classname[7], "garand", false))
+		if (realismreload && StrEqual(classname[7], "garand"))
 			SetEntData(weapon, m_iClip1, 0);
 	}
 
@@ -350,7 +346,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	if (data == INVALID_HANDLE)
 	{
 		// Log error and stop timer
-		LogError("Invalid data passed!");
+		LogError("Invalid data timer!");
 		return Plugin_Stop;
 	}
 
@@ -443,12 +439,16 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it within m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
-			// Retrieve ammunition type (when its created, dropped or picked)
-			switch (type)
+			// If max. ammo value is not set, dont do anything
+			if (clipnammo[ammosize])
 			{
-				case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
-				case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + (WeaponID * 4)));
-				case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + (WeaponID * 4), GetEntData(weapon, m_iSecondaryAmmoType)); // Then retrieve it
+				// Retrieve ammunition type (when its created, dropped or picked)
+				switch (type)
+				{
+					case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
+					case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + (WeaponID * 4)));
+					case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + (WeaponID * 4), GetEntData(weapon, m_iSecondaryAmmoType)); // Then retrieve it
+				}
 			}
 		}
 	}
