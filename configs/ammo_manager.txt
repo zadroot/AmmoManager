@@ -5,7 +5,7 @@
 // Otherwise if you will set different values for those grenades, you will get X grenades at once on buy / pickup!
 // HOWTOSETUP?!:
 // 1) Add weapon classname (without 'weapon_' prefix) at a new line.
-// 2) Then add a maximum clip size for this weapon (still buggy, should set less than original). Set to 0 if you dont know default value.
+// 2) Then add a maximum clip size for this weapon (still buggy, value should be less than original clipsize). Set to 0 if you dont know default value.
 // 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo cvars override).
 // Example: ak47;30;120 will set 120 ammo for ak47. Symbol ; is case sensitive in config!
 
