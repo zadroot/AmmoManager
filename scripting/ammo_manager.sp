@@ -104,7 +104,7 @@ public OnPluginStart()
 	m_iPrimaryAmmoType   = GetSendPropOffset("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 	m_iSecondaryAmmoType = GetSendPropOffset("CBaseCombatWeapon", "m_iSecondaryAmmoType");
 
-	// Thanks to Powerlord for this stock!
+	// Thanks to Powerlord for this stock
 	new EngineVersion:version = GetEngineVersionCompat();
 	switch (version)
 	{
@@ -128,7 +128,6 @@ public OnPluginStart()
 		default: MAX_WEAPONS = 48; // I assume other games (such as DoD:S) is having max 48 weapons
 	}
 
-	// I love tries
 	WeaponsTrie = CreateTrie();
 	AutoExecConfig(true);
 }
@@ -143,11 +142,11 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 	decl String:cvarName[16];
 	GetConVarName(convar, cvarName, sizeof(cvarName));
 
-	// Now compare names to properly set global booleans
+	// Now compare chars from convar names to properly set global booleans
 	switch (cvarName[11])
 	{
 		// First cvar is about to toggle plugin
-		case 'b': RestoreAmmoSetup(bool:StringToInt(newValue), true); // true means plugin has toggled
+		case 'b': RestoreAmmoSetup(bool:StringToInt(newValue), true); // second arg as true means plugin has toggled
 		case 'c': saveclips      = bool:StringToInt(newValue);
 		case 'e': RestoreAmmoSetup(bool:StringToInt(newValue), false); // reserved ammo changed, so plugin has not toggled
 		case 'l': realismreload  = bool:StringToInt(newValue);
@@ -189,9 +188,10 @@ public OnMapStart()
 			// Break ; symbols from config (javalia's method)
 			if (ExplodeString(fileline, ";", datas, sizeof(datas), PLATFORM_MAX_PATH) == 3)
 			{
-				// And properly setup clip and ammo values, add them in trie array
-				clipnammo[clipsize] = StringToInt(datas[1]);
-				clipnammo[ammosize] = StringToInt(datas[2]);
+				// Properly setup default clip size and other ammo values
+				clipnammo[defaultclip] = 0; // Set clip to 0 so no garbage is written to array
+				clipnammo[clipsize]    = StringToInt(datas[1]);
+				clipnammo[ammosize]    = StringToInt(datas[2]);
 				SetTrieArray(WeaponsTrie, datas[0], clipnammo, array_size);
 			}
 		}
@@ -199,7 +199,7 @@ public OnMapStart()
 	else
 	{
 		// No config, wtf? Restore ammo settings and disable plugin then
-		RestoreAmmoSetup(false, true); // emit plugin toggle
+		RestoreAmmoSetup(false, true); // properly disable plugin
 		SetFailState("Fatal error: cant load configuration file \"%s\"!", file);
 	}
 
@@ -444,10 +444,10 @@ SetWeaponClip(weapon, type)
 			{
 				case save:
 				{
-					// Check whether or not default clip has changed
-					if (clipnammo[defaultclip] != GetEntData(weapon, m_iClip1))
+					// Default clip size from array cant be less than original
+					if (clipnammo[defaultclip] < GetEntData(weapon, m_iClip1))
 					{
-						// Assign new default clip, and set it in trie array
+						// Correct the clip and set it in trie array
 						clipnammo[defaultclip] = GetEntData(weapon, m_iClip1);
 						SetTrieArray(WeaponsTrie, classname[7], clipnammo, sizeof(clipnammo));
 					}
