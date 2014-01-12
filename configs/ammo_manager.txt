@@ -1,11 +1,11 @@
 // Ammo Manager by Root.
 // Notes:
-// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined around their classnames).
+// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined below).
 // -In both CS:S and CS:GO you need to setup grenades ammunition as well via ammo_grenade_limit_* console variables.
-// Otherwise if you will set different values for those grenades, you will get X grenades at once on buy / pickup!
+// Otherwise if you will set different values for grenades, you will get X grenades at once or will not able to get more on buy / pickup!
 // HOWTOSETUP?!:
 // 1) Add weapon classname (without 'weapon_' prefix) at a new line.
-// 2) Then add a maximum clip size for this weapon (still buggy, value should be less than original clipsize). Set to 0 if you dont know default value.
+// 2) Then add a maximum clip size for this weapon (still buggy, size should be less than original). Set to 0 if you dont know default value.
 // 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo cvars override).
 // Example: ak47;30;120 will set 120 ammo for ak47. Symbol ; is case sensitive in config!
 
