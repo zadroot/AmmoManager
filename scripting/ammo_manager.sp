@@ -2,29 +2,29 @@
 * Ammo Manager by Root
 *
 * Description:
-*   Allows to setup different ammo settings (clips and reserved ammo) for every weapon.
+*   Allows to setup different clips and reserved ammo settings for any weapons as well as enabling realistic reload.
 *
-* Version 0.4
+* Version 0.5
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
-// ====[ INCLUDES ]=================================================
+// ====[ INCLUDES ]===============================================
 #include <sdkhooks>
 #include <sdktools>
 
-// ====[ CONSTANTS ]================================================
+// ====[ CONSTANTS ]==============================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "0.4"
+#define PLUGIN_VERSION "0.5"
 
 enum weapontype
 {
-	save, // to save original ammo settings
+	save, // this option saves original clip size
 	init,
 	drop,
 	pickup
 };
 
-enum ammotype
+enum ammotype // values in trie array
 {
 	defaultclip, // original clip size
 	clipsize,    // desired clip size
@@ -47,21 +47,21 @@ static const String:ammocvars[][] =
 	"ammo_buckshot_max"
 };
 
-// ====[ VARIABLES ]================================================
+// ====[ VARIABLES ]==============================================
 new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserved ammo
 	ammosetup[sizeof(ammocvars)], // Array to store original ammo convar values
 	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
 	bool:reserveammo, bool:realismreload,
-	m_iAmmo, m_hMyWeapons, m_hOwner, // Require datamap offsets to setup ammunition
+	m_iAmmo, m_hMyWeapons, m_hOwner, // Datamap offsets to setup ammunition
 	m_iClip1, m_iClip2, m_iPrimaryAmmoType,
-	m_iSecondaryAmmoType, MAX_WEAPONS; // maximum weapons for m_hMyWeapons array datamap
+	m_iSecondaryAmmoType, MAX_WEAPONS; // Maximum bound for m_hMyWeapons array datamap
 
-// ====[ PLUGIN ]===================================================
+// ====[ PLUGIN ]=================================================
 public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
 	author      = "Root",
-	description = "Allows to setup different ammo settings (clips and reserved ammo) for every weapon",
+	description = "Allows to setup different clips and reserved ammo settings for any weapons as well as enabling realistic reload",
 	version     = PLUGIN_VERSION,
 	url         = "http://dodsplugins.com/",
 };
@@ -70,7 +70,7 @@ public Plugin:myinfo =
 /* APLRes:AskPluginLoad2()
  *
  * Called before the plugin starts up.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
@@ -81,7 +81,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 /* OnPluginStart()
  *
  * When the plugin starts up.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnPluginStart()
 {
 	// Create version ConVar
@@ -89,11 +89,11 @@ public OnPluginStart()
 
 	// Register ConVars without using global handles
 	decl Handle:registar; // Hook ConVar changes and set global booleans when convar is just created
-	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "(Experimental) set weapon clip sizes",      FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
-	CloseHandle(registar); // I HATE Handles (c) KyleS
+	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set custom clip sizes (exp)", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
+	CloseHandle(registar);
 
 	// Find and store offsets properly, because those will be used a bit often
 	m_iAmmo              = GetSendPropOffset("CBasePlayer",       "m_iAmmo");
@@ -104,7 +104,7 @@ public OnPluginStart()
 	m_iPrimaryAmmoType   = GetSendPropOffset("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 	m_iSecondaryAmmoType = GetSendPropOffset("CBaseCombatWeapon", "m_iSecondaryAmmoType");
 
-	// Thanks to Powerlord for this stock
+	// Thanks to Powerlord for this stock!
 	new EngineVersion:version = GetEngineVersionCompat();
 	switch (version)
 	{
@@ -125,7 +125,7 @@ public OnPluginStart()
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
 		}
-		default: MAX_WEAPONS = 48; // I assume other games (such as DoD:S) is having max 48 weapons
+		default: MAX_WEAPONS = 48; // I assume other games (such as DoD:S) is having 48 weapons max
 	}
 
 	WeaponsTrie = CreateTrie();
@@ -135,7 +135,7 @@ public OnPluginStart()
 /* OnConVarChange()
  *
  * Called when ConVar value has changed.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnConVarChange(Handle:convar, const String:oldValue[], const String:newValue[])
 {
 	// Retrieve the convar name
@@ -156,10 +156,10 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 /* OnAmmoSettingsChanged()
  *
  * Called when ammo cvars settings has changed.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnAmmoSettingsChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
-	// If plugin is enabled and its should set reserved ammo, reset changed value to 0
+	// If plugin is enabled and its should set reserved ammo, reset changes
 	if (enabled && reserveammo)
 		SetConVarBool(convar, false);
 }
@@ -167,7 +167,7 @@ public OnAmmoSettingsChanged(Handle:convar, const String:oldValue[], const Strin
 /* OnMapStart()
  *
  * When the map starts.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnMapStart()
 {
 	// Get the config and prepare clipnammo value to set trie array
@@ -185,22 +185,22 @@ public OnMapStart()
 		// Read every line in config
 		while (ReadFileLine(file, fileline, PLATFORM_MAX_PATH))
 		{
-			// Break ; symbols from config (javalia's method)
+			// Break ; symbols from config (a javalia's method)
 			if (ExplodeString(fileline, ";", datas, sizeof(datas), PLATFORM_MAX_PATH) == 3)
 			{
 				// Properly setup default clip size and other ammo values
 				clipnammo[defaultclip] = 0; // Set clip to 0 so no garbage is written to array
-				clipnammo[clipsize]    = StringToInt(datas[1]);
-				clipnammo[ammosize]    = StringToInt(datas[2]);
+				clipnammo[clipsize] = StringToInt(datas[1]);
+				clipnammo[ammosize] = StringToInt(datas[2]);
 				SetTrieArray(WeaponsTrie, datas[0], clipnammo, array_size);
 			}
 		}
 	}
 	else
 	{
-		// No config, wtf? Restore ammo settings and disable plugin then
-		RestoreAmmoSetup(false, true); // properly disable plugin
-		SetFailState("Fatal error: cant load configuration file \"%s\"!", file);
+		// No config, wtf? Restore ammo settings and properly disable plugin then
+		RestoreAmmoSetup(false, true);
+		SetFailState("Fatal error: could not load plugin configuration file \"%s\"!", file);
 	}
 
 	// KyleS hates handles
@@ -210,12 +210,12 @@ public OnMapStart()
 /* OnEntityCreated()
  *
  * When an entity is created.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnEntityCreated(entity, const String:classname[])
 {
 	decl dummy[1];
 
-	// Hook entity spawning if plugin is enabling and entity classname is exists in trie
+	// Hook entity spawning if plugin is enabling and entity classname is exists in trie array
 	if (enabled && GetTrieArray(WeaponsTrie, classname[7], dummy, 0))
 	{
 		SDKHook(entity, SDKHook_SpawnPost, OnWeaponSpawned);
@@ -225,7 +225,7 @@ public OnEntityCreated(entity, const String:classname[])
 /* OnWeaponSpawned()
  *
  * When a weapon is successfully spawned.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnWeaponSpawned(weapon)
 {
 	// Use SDKHookEx in case if not weapon was passed (due to ignored first 7 characters)
@@ -245,7 +245,7 @@ public OnWeaponSpawned(weapon)
 /* OnClientPutInServer()
  *
  * Called when a client is entering the game.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnClientPutInServer(client)
 {
 	// Use Spawn hook as a backend if equipment didnt changed on player spawn
@@ -257,7 +257,7 @@ public OnClientPutInServer(client)
 /* OnPlayerSpawnPost()
  *
  * Called when the player spawns.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnPlayerSpawnPost(client)
 {
 	// Loop through max game weapons to properly check player weapons
@@ -279,7 +279,7 @@ public OnPlayerSpawnPost(client)
 /* OnWeaponDropPost()
  *
  * Called when a client drops his weapon.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnWeaponDropPost(client, weapon)
 {
 	// Save weapon clip and its ammo after dropping
@@ -290,7 +290,7 @@ public OnWeaponDropPost(client, weapon)
 /* OnWeaponEquipPost()
  *
  * Called when a client equips a weapon.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public OnWeaponEquipPost(client, weapon)
 {
 	// Set saved weapon clip and its ammo for this client on picking
@@ -301,7 +301,7 @@ public OnWeaponEquipPost(client, weapon)
 /* OnWeaponReloaded()
  *
  * Called when a weapon is about to reload.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public Action:OnWeaponReload(weapon)
 {
 	decl String:classname[32], clipnammo[array_size];
@@ -311,14 +311,14 @@ public Action:OnWeaponReload(weapon)
 	if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, array_size))
 	{
 		// If clip size is more than 0 and less than defined, denie weapon reloading
-		if (saveclips && 0 < clipnammo[clipsize] <= GetEntData(weapon, m_iClip1))
+		if (0 < clipnammo[clipsize] <= GetEntData(weapon, m_iClip1))
 		{
 			return Plugin_Handled;
 		}
 		else
 		{
 			// Otherwise create timer to correct clipsize and ammo during reloading
-			new Handle:data, client = GetEntDataEnt2(weapon, m_hOwner);
+			new Handle:data = INVALID_HANDLE, client = GetEntDataEnt2(weapon, m_hOwner);
 			CreateDataTimer(0.1, Timer_FixAmmunition, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 
 			// Add entity reference, client userid and weapon clips in data timer
@@ -339,7 +339,7 @@ public Action:OnWeaponReload(weapon)
 /* Timer_FixAmmunition()
  *
  * Called during weapon is reloading.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public Action:Timer_FixAmmunition(Handle:event, any:data)
 {
 	if (data == INVALID_HANDLE)
@@ -412,7 +412,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 /* Timer_SetupDefaultClips()
  *
  * Sets default weapon clips after they spawn.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
 {
 	// Convert entity reference to entity index
@@ -427,7 +427,7 @@ public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
 /* SetWeaponClip()
  *
  * Sets weapon clip when its spawned, picked or dropped.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 SetWeaponClip(weapon, type)
 {
 	// Does plugin should save weapon clips?
@@ -475,7 +475,7 @@ SetWeaponClip(weapon, type)
 /* SetWeaponReservedAmmo()
  *
  * Sets weapon reserved ammunition when its spawned, picked or dropped.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 SetWeaponReservedAmmo(client, weapon, type)
 {
 	// Make sure weapon is valid
@@ -507,7 +507,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 /* RestoreAmmoSetup()
  *
  * Restores original ammo settings for CS:S and CS:GO when plugin disables.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 RestoreAmmoSetup(bool:value, bool:toggled)
 {
 	if (toggled) enabled = value; // Plugin has toggled? set enabled value then
@@ -531,7 +531,7 @@ RestoreAmmoSetup(bool:value, bool:toggled)
 /* GetSendPropOffset()
  *
  * Returns the offset of the specified network property.
- * ----------------------------------------------------------------- */
+ * --------------------------------------------------------------- */
 GetSendPropOffset(const String:serverClass[64], const String:propName[64])
 {
 	new offset = FindSendPropOffs(serverClass, propName);
