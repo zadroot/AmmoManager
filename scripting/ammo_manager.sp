@@ -4,7 +4,7 @@
 * Description:
 *   Allows to setup different clips and reserved ammo settings for any weapons as well as enabling realistic reload.
 *
-* Version 0.5
+* Version 0.6
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -14,7 +14,7 @@
 
 // ====[ CONSTANTS ]==============================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "0.5"
+#define PLUGIN_VERSION "0.6"
 
 enum weapontype
 {
@@ -44,7 +44,9 @@ static const String:ammocvars[][] =
 	"ammo_57mm_max",
 	"ammo_762mm_max",
 	"ammo_9mm_max",
-	"ammo_buckshot_max"
+	"ammo_buckshot_max",
+	"ammo_357sig_small_max", // Ammo for usp-s
+	"ammo_556mm_small_max" // For m4a1-s
 };
 
 // ====[ VARIABLES ]==============================================
@@ -53,8 +55,9 @@ new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserv
 	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
 	bool:reserveammo, bool:realismreload,
 	m_iAmmo, m_hMyWeapons, m_hOwner, // Datamap offsets to setup ammunition
-	m_iClip1, m_iClip2, m_iPrimaryAmmoType,
-	m_iSecondaryAmmoType, MAX_WEAPONS; // Maximum bound for m_hMyWeapons array datamap
+	m_iClip1, m_iClip2, m_bSilencerOn,
+	m_iPrimaryAmmoType, m_iSecondaryAmmoType,
+	bool:IsCSGO, MAX_AMMOCVARS, MAX_WEAPONS; // Maximum bound for m_hMyWeapons array datamap
 
 // ====[ PLUGIN ]=================================================
 public Plugin:myinfo =
@@ -89,10 +92,10 @@ public OnPluginStart()
 
 	// Register ConVars without using global handles
 	decl Handle:registar; // Hook ConVar changes and set global booleans when convar is just created
-	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set custom clip sizes (exp)", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_enabled", "1", "Whether or not enable Ammo Manager plugin",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); enabled       = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set clip size (experimental)", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
 	CloseHandle(registar);
 
 	// Find and store offsets properly, because those will be used a bit often
@@ -110,10 +113,22 @@ public OnPluginStart()
 	{
 		case Engine_CSS, Engine_CSGO:
 		{
-			// Set MAX_WEAPONS value for CS:S to 48 and 64 for CS:GO
-			MAX_WEAPONS = (version == Engine_CSS ? 48 : 64);
+			// Set MAX_AMMOCVARS for CS:S to 10
+			MAX_AMMOCVARS = 10;
+			MAX_WEAPONS   = 48;
 
-			for (new i; i < sizeof(ammocvars); i++)
+			if (version == Engine_CSGO)
+			{
+				// Set global CS:GO boolean to properly check for weapons with silencer
+				IsCSGO = true;
+
+				// Set appropriate values for CS:GO also
+				MAX_AMMOCVARS = 12;
+				MAX_WEAPONS   = 64;
+			}
+
+			// Loop though all cvars
+			for (new i; i < MAX_AMMOCVARS; i++)
 			{
 				// Cache default convar value
 				ammosetup[i] = GetConVarInt(FindConVar(ammocvars[i]));
@@ -124,6 +139,9 @@ public OnPluginStart()
 				// Hook ammo convars changes
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
+
+			// Find property offset to check whether or not weapon got given silencer
+			m_bSilencerOn = GetSendPropOffset("CWeaponCSBaseGun", "m_bSilencerOn");
 		}
 		default: MAX_WEAPONS = 48; // I assume other games (such as DoD:S) is having 48 weapons max
 	}
@@ -198,7 +216,7 @@ public OnMapStart()
 	}
 	else
 	{
-		// No config, wtf? Restore ammo settings and properly disable plugin then
+		// No config, wtf ? Restore ammo settings and properly disable plugin then
 		RestoreAmmoSetup(false, true);
 		SetFailState("Fatal error: could not load plugin configuration file \"%s\"!", file);
 	}
@@ -306,6 +324,10 @@ public Action:OnWeaponReload(weapon)
 {
 	decl String:classname[32], clipnammo[array_size];
 	GetEdictClassname(weapon,  classname, sizeof(classname));
+
+	// Check whether or not this weapon got silencer initialized
+	if (IsCSGO && GetEntData(weapon, m_bSilencerOn))
+		StrCat(classname, sizeof(classname), "-s");
 
 	// Make sure this weapon is exists in Weapons Trie
 	if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, array_size))
@@ -437,6 +459,10 @@ SetWeaponClip(weapon, type)
 		decl String:classname[32], clipnammo[array_size];
 		GetEdictClassname(weapon,  classname, sizeof(classname));
 
+		// If weapon got initialized silencer, add '-s' end
+		if (IsCSGO && GetEntData(weapon, m_bSilencerOn))
+			StrCat(classname, sizeof(classname), "-s");
+
 		// Does this weapon is exists in weapons trie?
 		if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, array_size))
 		{
@@ -484,6 +510,10 @@ SetWeaponReservedAmmo(client, weapon, type)
 		decl String:classname[32], clipnammo[array_size];
 		GetEdictClassname(weapon,  classname, sizeof(classname));
 
+		// '-s' needed to compare with list of weapons
+		if (IsCSGO && GetEntData(weapon, m_bSilencerOn))
+			StrCat(classname, sizeof(classname), "-s");
+
 		if (GetTrieArray(WeaponsTrie, classname[7], clipnammo, array_size))
 		{
 			// Get the weapon ID to properly find it in m_iAmmo array
@@ -518,8 +548,8 @@ RestoreAmmoSetup(bool:value, bool:toggled)
 	{
 		case Engine_CSS, Engine_CSGO:
 		{
-			// Loop through all ammo convars
-			for (new i; i < sizeof(ammocvars); i++)
+			// Again loop thru all game cvars
+			for (new i; i < MAX_AMMOCVARS; i++)
 			{
 				// Set ammo cvar values to 0 if plugin is enabled, otherwise set cached values back for all cstrike convars
 				SetConVarInt(FindConVar(ammocvars[i]), (toggled && enabled || !toggled && reserveammo) ? 0 : ammosetup[i]);

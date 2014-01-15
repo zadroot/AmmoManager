@@ -1,9 +1,6 @@
 // Ammo Manager by Root.
-// Notes:
-// -In CS:GO to setup m4a1-silencer and usp-silencer ammo values, you need to setup appropriate cvars (defined below).
-// -In both CS:S and CS:GO you need to setup grenades ammunition as well via ammo_grenade_limit_* console variables.
-// Otherwise if you will set different values for grenades, you will get X grenades at once or will not able to get more on buy / pickup!
-// HOWTOSETUP?!:
+// A note about grenades: I recommend to setup limits via ammo_grenade_limit_* convars, because plugin gives X amount of grenades on equip.
+// How to setup ammo for weapons:
 // 1) Add weapon classname (without 'weapon_' prefix) at a new line.
 // 2) Then add a maximum clip size for this weapon (still buggy, size should be less than original). Set to 0 if you dont know default value.
 // 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo cvars override).
@@ -12,7 +9,8 @@
 // List of CS:S/CS:GO weapons and its settings.
 // Rifles
 famas;25;90
-m4a1;30;90 // To set m4a1-s ammo settings add "ammo_556mm_small_max <amount>" in server.cfg
+m4a1;30;90
+m4a1-s;20;40 // CS:GO m4a1 with silencer
 galilar;35;90
 galil;35;90 // CS:S
 ak47;30;90
@@ -50,7 +48,8 @@ p250;13;52
 fiveseven;20;100
 deagle;7;35
 elite;30;120
-hkp2000;13;52 // To set usp-s ammo settings add "ammo_357sig_small_max <amount>" in server.cfg
+hkp2000;13;52
+hkp2000-s;12;24 // CS:GO usp with silencer
 tec9;32;120
 usp;12;100 // CS:S
 
@@ -60,7 +59,7 @@ usp;12;100 // CS:S
 //smokegrenade;1;1
 //molotov;1;1
 //decoy;1;1
-taser;1;0
+taser;1;0 // You can setup ammo for taser as well
 
 // List of DoD:S weapons and its settings.
 // Rifles
