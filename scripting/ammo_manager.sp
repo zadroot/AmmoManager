@@ -4,7 +4,7 @@
 * Description:
 *   Allows to setup different clips and reserved ammo for any weapons as well as enabling realistic reload.
 *
-* Version 0.7
+* Version 0.8
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -14,7 +14,7 @@
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "0.7"
+#define PLUGIN_VERSION "0.8"
 
 enum weapontype
 {
@@ -106,9 +106,6 @@ public OnPluginStart()
 	m_iClip2             = GetSendPropOffset("CBaseCombatWeapon", "m_iClip2");
 	m_iPrimaryAmmoType   = GetSendPropOffset("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 	m_iSecondaryAmmoType = GetSendPropOffset("CBaseCombatWeapon", "m_iSecondaryAmmoType");
-
-	// Backend if ammunition != changed
-	HookEvent("player_spawn", OnPlayerSpawn);
 
 	// Thanks to Powerlord for this stock
 	new EngineVersion:version = GetEngineVersionCompat();
@@ -278,29 +275,31 @@ public OnWeaponSpawned(weapon)
  * ------------------------------------------------------------------ */
 public OnClientPutInServer(client)
 {
+	// Use Spawn hooks as a backend if equipment didnt changed
+	SDKHook(client, SDKHook_Spawn,           OnPlayerSpawn);
+	SDKHook(client, SDKHook_SpawnPost,       OnPlayerSpawnPost);
 	SDKHook(client, SDKHook_WeaponDropPost,  OnWeaponDropPost);
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
 
 /* OnPlayerSpawn()
  *
+ * Called when the player spawns.
+ * ------------------------------------------------------------------ */
+public Action:OnPlayerSpawn(client)
+{
+	// Set ammunition before player equips a weapon
+	SetSpawnAmmunition(client, true);
+}
+
+/* OnPlayerSpawnPost()
+ *
  * Called after the player spawns.
  * ------------------------------------------------------------------ */
-public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public OnPlayerSpawnPost(client)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid")), weapon = -1;
-
-	// Loop through max game weapons to properly check player weapons
-	for (new i; i < MAX_WEAPONS; i++)
-	{
-		// m_hMyWeapons datamap got many offsets as weapons in game
-		if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
-		{
-			// And then set weapon clips and its ammo properly
-			SetWeaponClip(weapon, weapontype:pickup);
-			SetWeaponReservedAmmo(client, weapon, weapontype:pickup);
-		}
-	}
+	// And set after player spawns
+	SetSpawnAmmunition(client, false);
 }
 
 /* OnWeaponDropPost()
@@ -456,6 +455,27 @@ public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
 	}
 }
 
+/* SetSpawnAmmunition()
+ *
+ * Sets player reserved ammo properly in pre and post spawn events.
+ * ------------------------------------------------------------------ */
+SetSpawnAmmunition(client, bool:prehook)
+{
+	// Loop through max game weapons to properly check player weapons in m_hMyWeapons array
+	for (new i; i < MAX_WEAPONS; i++)
+	{
+		new weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4));
+
+		// Validate!
+		if (IsValidEdict(weapon))
+		{
+			// On pre-spawn hook set m_iSecondaryAmmoType as an initialized value
+			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set ammo as current
+			SetWeaponReservedAmmo(client, weapon, prehook ? init : pickup);
+		}
+	}
+}
+
 /* SetWeaponClip()
  *
  * Sets weapon clip when its spawned, picked or dropped.
@@ -529,7 +549,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it in m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
-			// If max ammo value is not set, dont do anything
+			// If max. ammo value is not set, dont do anything
 			if (clipnammo[ammosize])
 			{
 				// Retrieve ammunition type (when its created, dropped or picked)
