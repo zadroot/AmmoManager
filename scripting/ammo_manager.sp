@@ -107,6 +107,9 @@ public OnPluginStart()
 	m_iPrimaryAmmoType   = GetSendPropOffset("CBaseCombatWeapon", "m_iPrimaryAmmoType");
 	m_iSecondaryAmmoType = GetSendPropOffset("CBaseCombatWeapon", "m_iSecondaryAmmoType");
 
+	// Backend if ammunition != changed
+	HookEvent("player_spawn", OnPlayerSpawn);
+
 	// Thanks to Powerlord for this stock
 	new EngineVersion:version = GetEngineVersionCompat();
 	switch (version)
@@ -275,26 +278,23 @@ public OnWeaponSpawned(weapon)
  * ------------------------------------------------------------------ */
 public OnClientPutInServer(client)
 {
-	// Use Spawn hook as a backend if equipment didnt changed on player spawn
-	SDKHook(client, SDKHook_SpawnPost,       OnPlayerSpawnPost);
 	SDKHook(client, SDKHook_WeaponDropPost,  OnWeaponDropPost);
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
 
-/* OnPlayerSpawnPost()
+/* OnPlayerSpawn()
  *
- * Called when the player spawns.
+ * Called after the player spawns.
  * ------------------------------------------------------------------ */
-public OnPlayerSpawnPost(client)
+public OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
+	new client = GetClientOfUserId(GetEventInt(event, "userid")), weapon = -1;
+
 	// Loop through max game weapons to properly check player weapons
 	for (new i; i < MAX_WEAPONS; i++)
 	{
 		// m_hMyWeapons datamap got many offsets as weapons in game
-		new weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4));
-
-		// Make sure founded weapon is valid
-		if (IsValidEdict(weapon))
+		if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
 		{
 			// And then set weapon clips and its ammo properly
 			SetWeaponClip(weapon, weapontype:pickup);
@@ -433,7 +433,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 			SetEntData(weapon, m_iClip1, newclip);
 		}
 
-		// Player has reloaded! Stop timer
+		// Player has reloaded, stop timer
 		reloaded[client] = true;
 		return Plugin_Stop;
 	}
@@ -529,7 +529,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it in m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
-			// If max. ammo value is not set, dont do anything
+			// If max ammo value is not set, dont do anything
 			if (clipnammo[ammosize])
 			{
 				// Retrieve ammunition type (when its created, dropped or picked)
