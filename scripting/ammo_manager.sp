@@ -128,6 +128,9 @@ public OnPluginStart()
 				// Setup appropriate values for CS:GO as well
 				MAX_AMMOCVARS = 12;
 				MAX_WEAPONS   = 64;
+
+				// Find property offset to check whether or not weapon got the silencer
+				m_bSilencerOn = FindSendPropOffsEx("CWeaponCSBaseGun", "m_bSilencerOn");
 			}
 
 			// Loop though all cvars
@@ -142,9 +145,6 @@ public OnPluginStart()
 				// Hook ammo convars changes
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
-
-			// Find property offset to check whether or not weapon got given silencer
-			m_bSilencerOn = FindSendPropOffsEx("CWeaponCSBaseGun", "m_bSilencerOn");
 		}
 		case Engine_TF2: prefixlen = 10; // Because TF2 got 'tf_weapon_' prefix
 	}
