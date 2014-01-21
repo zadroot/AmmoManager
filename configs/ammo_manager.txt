@@ -1,8 +1,8 @@
 // Ammo Manager by Root.
 // How to setup ammunition for weapons:
 // 1) Add weapon classname without 'weapon_' prefix ('tf_weapon_' in TF2) at a new line.
-// 2) Then add a maximum clip size for this weapon (still buggy, size should be less than original). Set to 0 if you dont know default value.
-// 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo_ convars override).
+// 2) Then add a maximum clip size for this weapon (size should be less than original). Set to 0 if you dont know default value.
+// 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo_* convars override).
 // Example: ak47;30;120 will set 120 ammo for ak47. Symbol ; is case sensitive in configuring!
 // Note:
 // In CS:S/CS:GO its recommended to setup grenade limits via ammo_grenade_limit_* convars, because plugin gives X amount of grenades on their equip.
