@@ -18,7 +18,7 @@
 
 enum weapontype
 {
-	save, // this option saves original clip size
+	save, // this type saves original clip size for weapons
 	init,
 	drop,
 	pickup
@@ -87,6 +87,15 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
  * ------------------------------------------------------------------ */
 public OnPluginStart()
 {
+	// Find and store offsets properly, because those will be used a bit often
+	m_iAmmo              = FindSendPropOffsEx("CBasePlayer",       "m_iAmmo");
+	m_hMyWeapons         = FindSendPropOffsEx("CBasePlayer",       "m_hMyWeapons");
+	m_hOwner             = FindSendPropOffsEx("CBaseCombatWeapon", "m_hOwner");
+	m_iClip1             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip1");
+	m_iClip2             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip2");
+	m_iPrimaryAmmoType   = FindSendPropOffsEx("CBaseCombatWeapon", "m_iPrimaryAmmoType");
+	m_iSecondaryAmmoType = FindSendPropOffsEx("CBaseCombatWeapon", "m_iSecondaryAmmoType");
+
 	// Create version ConVar
 	CreateConVar("sm_ammo_manager_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_NOTIFY|FCVAR_DONTRECORD);
 
@@ -97,15 +106,6 @@ public OnPluginStart()
 	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not use realism reloading mode",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
 	CloseHandle(registar);
-
-	// Find and store offsets properly, because those will be used a bit often
-	m_iAmmo              = FindSendPropOffsEx("CBasePlayer",       "m_iAmmo");
-	m_hMyWeapons         = FindSendPropOffsEx("CBasePlayer",       "m_hMyWeapons");
-	m_hOwner             = FindSendPropOffsEx("CBaseCombatWeapon", "m_hOwner");
-	m_iClip1             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip1");
-	m_iClip2             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip2");
-	m_iPrimaryAmmoType   = FindSendPropOffsEx("CBaseCombatWeapon", "m_iPrimaryAmmoType");
-	m_iSecondaryAmmoType = FindSendPropOffsEx("CBaseCombatWeapon", "m_iSecondaryAmmoType");
 
 	// I assume other games (such as DoD:S) got 'weapon_' prefix and 48 weapons
 	prefixlength = 7;
@@ -197,7 +197,7 @@ public OnMapStart()
 		decl String:datas[3][PLATFORM_MAX_PATH];
 
 		// Read every line in config
-		while (ReadFileLine(file, fileline, PLATFORM_MAX_PATH))
+		while (ReadFileLine(file, fileline, sizeof(fileline)))
 		{
 			// Break ; symbols from config (a javalia's method)
 			if (ExplodeString(fileline, ";", datas, sizeof(datas), sizeof(datas[])) == 3)
@@ -212,7 +212,7 @@ public OnMapStart()
 	}
 	else
 	{
-		// No config, wtf? Restore ammo settings and properly disable plugin!
+		// No config, wtf? Restore ammo settings and properly disable plugin
 		RestoreAmmoSetup(false, true);
 		SetFailState("Unable to load plugin configuration file \"%s\"!", file);
 	}
@@ -242,7 +242,7 @@ public OnEntityCreated(entity, const String:classname[])
  * ------------------------------------------------------------------ */
 public OnWeaponSpawned(weapon)
 {
-	// Use SDKHookEx in case if not weapon was passed (due to ignored first 7 or 10 characters)
+	// Use SDKHookEx in case if not weapon was passed (due to ignored first 7/10 characters)
 	if (SDKHookEx(weapon, SDKHook_Reload, OnWeaponReload))
 	{
 		// Set weapon clip and reserve ammo when its just spawned
@@ -392,7 +392,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	static bool:reloaded[MAXPLAYERS + 1] = true;
 
 	// Does weapon is reloading at the moment?
-	if (GetEntProp(weapon, Prop_Data, "m_bInReload"))
+	if (bool:GetEntProp(weapon, Prop_Data, "m_bInReload", true))
 	{
 		// Check whether or not player got any ammo and haven't reloaded before
 		if (reloaded[client] && currammo)
@@ -415,7 +415,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 		// Set boolean to make sure that clip has been set and ammo corrected once
 		reloaded[client] = false;
 	}
-	else // Nope player is not reloading anymore
+	else // Player is not reloading anymore
 	{
 		// Plugin should save different clips?
 		if (saveclips && !reloaded[client])
@@ -457,7 +457,7 @@ SetSpawnAmmunition(client, bool:prehook)
 	for (new i; i < MAX_WEAPONS; i++)
 	{
 		new weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4));
-		if (IsValidEdict(weapon))
+		if (weapon != -1)
 		{
 			// On pre-spawn hook set m_iSecondaryAmmoType as default init value
 			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo value
@@ -539,7 +539,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it in m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
-			// If ammo value is not set (i.e. = 0), dont do anything
+			// If ammo value is not set (i.e 0), dont do anything
 			if (clipnammo[ammosize])
 			{
 				// Retrieve ammunition type (when its created, dropped or picked)
