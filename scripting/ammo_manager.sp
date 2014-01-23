@@ -456,11 +456,11 @@ SetSpawnAmmunition(client, bool:prehook)
 	// Loop through max game weapons to properly check player weapons in m_hMyWeapons array
 	for (new i; i < MAX_WEAPONS; i++)
 	{
-		new weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4));
-		if (weapon != -1)
+		new weapon  = -1;
+		if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
 		{
-			// On pre-spawn hook set m_iSecondaryAmmoType as default init value
-			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo value
+			// On pre-spawn hook set m_iSecondaryAmmoType as default value
+			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set ammo as current
 			SetWeaponReservedAmmo(client, weapon, prehook ? init : pickup);
 		}
 	}
