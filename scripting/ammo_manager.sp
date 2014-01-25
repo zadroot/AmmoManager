@@ -453,14 +453,14 @@ public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
  * ------------------------------------------------------------------ */
 SetSpawnAmmunition(client, bool:prehook)
 {
-	// Loop through max game weapons to properly check player weapons in m_hMyWeapons array
+	if (!enabled) return; // Loop through max. game weapons to properly get all player weapons
 	for (new i; i < MAX_WEAPONS; i++)
 	{
 		new weapon  = -1;
 		if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
 		{
 			// On pre-spawn hook set m_iSecondaryAmmoType as default value
-			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set ammo as current
+			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo
 			SetWeaponReservedAmmo(client, weapon, prehook ? init : pickup);
 		}
 	}
