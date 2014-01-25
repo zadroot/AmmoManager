@@ -78,7 +78,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
 	MarkNativeAsOptional("GetEngineVersion");
-	return APLRes_Success;
+	//return APLRes_Success;
 }
 
 /* OnPluginStart()
@@ -453,7 +453,7 @@ public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
  * ------------------------------------------------------------------ */
 SetSpawnAmmunition(client, bool:prehook)
 {
-	if (!enabled) return; // Loop through max. game weapons to properly get all player weapons
+	if (!enabled) return; // Loop through max game weapons to properly get all player weapons
 	for (new i; i < MAX_WEAPONS; i++)
 	{
 		new weapon  = -1;
@@ -539,7 +539,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it in m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
-			// If ammo value is not set (i.e 0), dont do anything
+			// If ammo value is not set ( = 0), dont do anything
 			if (clipnammo[ammosize])
 			{
 				// Retrieve ammunition type (when its created, dropped or picked)
