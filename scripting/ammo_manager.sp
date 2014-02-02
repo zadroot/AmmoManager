@@ -4,17 +4,19 @@
 * Description:
 *   Allows to setup different clips and reserved ammo for any weapons as well as enabling realistic reload.
 *
-* Version 0.9
+* Version 1.0
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
 // ====[ INCLUDES ]=================================================
 #include <sdkhooks>
 #include <sdktools>
+#undef REQUIRE_EXTENSIONS
+#include <cstrike>
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "0.9"
+#define PLUGIN_VERSION "1.0"
 
 enum weapontype
 {
@@ -67,7 +69,7 @@ public Plugin:myinfo =
 	description = "Allows to setup different clips and reserved ammo for any weapons as well as enabling realistic reload",
 	version     = PLUGIN_VERSION,
 	url         = "http://dodsplugins.com/",
-};
+}
 
 
 /* APLRes:AskPluginLoad2()
@@ -78,7 +80,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
 	MarkNativeAsOptional("GetEngineVersion");
-	//return APLRes_Success;
+	// return APLRes_Success;
 }
 
 /* OnPluginStart()
@@ -254,7 +256,12 @@ public OnWeaponSpawned(weapon)
 		if (saveclips)
 		{
 			// Setup default weapon clips after a small delay, because spawn hook is way too fast for that
-			CreateTimer(0.1, Timer_SetupDefaultClips, EntIndexToEntRef(weapon), TIMER_FLAG_NO_MAPCHANGE);
+			new Handle:data = INVALID_HANDLE;
+			CreateDataTimer(0.1, Timer_SetupDefaultClips, data, TIMER_FLAG_NO_MAPCHANGE);
+
+			// Write the weapontype to retrieve callback when timer was created
+			WritePackCell(data, weapontype:save);
+			WritePackCell(data, EntIndexToEntRef(weapon));
 		}
 	}
 }
@@ -314,7 +321,7 @@ public OnWeaponEquipPost(client, weapon)
 	SetWeaponReservedAmmo(client, weapon, weapontype:pickup);
 }
 
-/* OnWeaponReloaded()
+/* OnWeaponReload()
  *
  * Called when a weapon is about to reload.
  * ------------------------------------------------------------------ */
@@ -341,9 +348,9 @@ public Action:OnWeaponReload(weapon)
 			new Handle:data = INVALID_HANDLE, client = GetEntDataEnt2(weapon, m_hOwner);
 			CreateDataTimer(0.1, Timer_FixAmmunition, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 
-			// Add entity reference, client userid and weapon clips in data timer
+			// Add entity reference, client serial and weapon clips in data timer
 			WritePackCell(data, EntIndexToEntRef(weapon));
-			WritePackCell(data, GetClientUserId(client));
+			WritePackCell(data, GetClientSerial(client));
 			WritePackCell(data, clipnammo[defaultclip]);
 			WritePackCell(data, clipnammo[clipsize]);
 		}
@@ -354,6 +361,25 @@ public Action:OnWeaponReload(weapon)
 	}
 
 	return Plugin_Continue;
+}
+
+/* CS_OnBuyCommand()
+ *
+ * Called when a player attempts to purchase an item.
+ * ------------------------------------------------------------------ */
+public Action:CS_OnBuyCommand(client, const String:weapon[])
+{
+	// No need to create timer unless plugin should save weapon clips
+	if (saveclips)
+	{
+		// Create a delay when player buys a weapon
+		new Handle:data = INVALID_HANDLE;
+		CreateDataTimer(0.1, Timer_SetupDefaultClips, data, TIMER_FLAG_NO_MAPCHANGE);
+
+		// It's required to setup weapon clips when weapon is just retrieved to player
+		WritePackCell(data, weapontype:pickup);
+		WritePackCell(data, GetClientSerial(client));
+	}
 }
 
 /* Timer_FixAmmunition()
@@ -372,7 +398,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 
 	// Retrieve all the data from timer
 	new weapon  = EntRefToEntIndex(ReadPackCell(data));
-	new client  = GetClientOfUserId(ReadPackCell(data));
+	new client  = GetClientFromSerial(ReadPackCell(data));
 	new oldclip = ReadPackCell(data);
 	new newclip = ReadPackCell(data);
 
@@ -436,15 +462,39 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
  *
  * Sets default weapon clips after they spawn.
  * ------------------------------------------------------------------ */
-public Action:Timer_SetupDefaultClips(Handle:timer, any:ref)
+public Action:Timer_SetupDefaultClips(Handle:timer, any:data)
 {
-	// Convert entity reference to entity index
-	new weapon = EntRefToEntIndex(ref)
-	if (weapon != INVALID_ENT_REFERENCE)
+	if (data == INVALID_HANDLE)
 	{
-		// After delay set default weapon clips in weapons trie
-		SetWeaponClip(weapon, weapontype:save);
+		// Stop timer if data is invalid
+		LogError("Invalid data timer!");
+		return Plugin_Stop;
 	}
+
+	ResetPack(data);
+
+	new entity;
+
+	// Retrieve the callback where timer was created
+	switch (ReadPackCell(data))
+	{
+		// Timer was created at OnWeaponSpawn hook
+		case save:
+		{
+			// Convert entity reference to entity index, validate weapon and set default clip
+			if ((entity = EntRefToEntIndex(ReadPackCell(data))) != INVALID_ENT_REFERENCE)
+				SetWeaponClip(entity, weapontype:save);
+		}
+		// Timer was created after player has purchased weapon
+		case pickup:
+		{
+			// Set default clip for this!
+			if ((entity = GetClientFromSerial(ReadPackCell(data))))
+				SetSpawnAmmunition(entity, false);
+		}
+	}
+
+	return Plugin_Stop;
 }
 
 /* SetSpawnAmmunition()
