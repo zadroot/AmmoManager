@@ -272,7 +272,7 @@ public OnWeaponSpawned(weapon)
  * ------------------------------------------------------------------ */
 public OnClientPutInServer(client)
 {
-	// Use both spawn hooks as a backend if equipment didnt changed
+	// Use both spawn hooks as a backend if equipment did not changed
 	SDKHook(client, SDKHook_Spawn,           OnPlayerSpawn);
 	SDKHook(client, SDKHook_SpawnPost,       OnPlayerSpawnPost);
 	SDKHook(client, SDKHook_WeaponDropPost,  OnWeaponDropPost);
@@ -316,7 +316,7 @@ public OnWeaponDropPost(client, weapon)
  * ------------------------------------------------------------------ */
 public OnWeaponEquipPost(client, weapon)
 {
-	// Set saved weapon clip & ammo for this client on every weapon pickup
+	// Set stored weapon clip and its ammo for this client on every weapon pickup
 	SetWeaponClip(weapon, weapontype:pickup);
 	SetWeaponReservedAmmo(client, weapon, weapontype:pickup);
 }
@@ -355,7 +355,7 @@ public Action:OnWeaponReload(weapon)
 			WritePackCell(data, clipnammo[clipsize]);
 		}
 
-		// Reset garand clipsize to 0 if realistic reload enabled (ReloadGarand -like)
+		// Reset garand clipsize to 0 if realistic reload enabled (a DoD:S ReloadGarand-like perks)
 		if (realismreload && StrEqual(classname[7], "garand"))
 			SetEntData(weapon, m_iClip1, 0);
 	}
@@ -430,10 +430,12 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 			}
 			if (saveclips)
 			{
-				// Correct new clip
-				if (newclip > oldclip)
+				// DONT correct new clip
+				/* if (newclip > oldclip)
 					newclip = oldclip
-				else if (newclip < oldclip) // Correct player ammo once during reloading
+				else  */
+				// Correct player ammo once during reloading
+				if (newclip < oldclip)
 					SetEntData(client, m_iAmmo + (WeaponID * 4), currammo + newclip);
 			}
 		}
@@ -548,21 +550,9 @@ SetWeaponClip(weapon, type)
 						SetTrieArray(WeaponsTrie, classname[prefixlength], clipnammo, sizeof(clipnammo));
 					}
 				}
-				case init:
-				{
-					// Otherwise store desired clip value in unused m_iClip2 datamap offset
-					SetEntData(weapon, m_iClip2, clipnammo[clipsize]);
-				}
-				case drop:
-				{
-					// When weapon is dropped, get proper clip value and set m_iClip2 yet again
-					SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1) > clipnammo[clipsize] ? clipnammo[clipsize] : GetEntData(weapon, m_iClip1));
-				}
-				case pickup:
-				{
-					// Make sure desired clip size isnt bigger than default one, if so, correct it and set m_iClip2 as default clip value
-					SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2) > clipnammo[clipsize] ? clipnammo[clipsize] : GetEntData(weapon, m_iClip2));
-				}
+				case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
+				case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
+				case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size
 			}
 		}
 	}
