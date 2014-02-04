@@ -20,7 +20,6 @@
 
 enum weapontype
 {
-	save, // this type saves original clip size for weapons
 	init,
 	drop,
 	pickup
@@ -80,7 +79,6 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
 	// Mark GetEngineVersion as optional native due to older SM versions and GetEngineVersionCompat() stock
 	MarkNativeAsOptional("GetEngineVersion");
-	// return APLRes_Success;
 }
 
 /* OnPluginStart()
@@ -196,18 +194,18 @@ public OnMapStart()
 		ClearTrie(WeaponsTrie);
 
 		decl String:fileline[PLATFORM_MAX_PATH];
-		decl String:datas[3][PLATFORM_MAX_PATH];
+		decl String:datas[4][PLATFORM_MAX_PATH];
 
 		// Read every line in config
 		while (ReadFileLine(file, fileline, sizeof(fileline)))
 		{
 			// Break ; symbols from config (a javalia's method)
-			if (ExplodeString(fileline, ";", datas, sizeof(datas), sizeof(datas[])) == 3)
+			if (ExplodeString(fileline, ";", datas, sizeof(datas), sizeof(datas[])) == 4)
 			{
 				// Properly setup default clip size and other ammo values
-				clipnammo[defaultclip] = 0; // Set clip to 0 so no garbage is written to array
-				clipnammo[clipsize] = StringToInt(datas[1]);
-				clipnammo[ammosize] = StringToInt(datas[2]);
+				clipnammo[defaultclip] = StringToInt(datas[1]);
+				clipnammo[clipsize]    = StringToInt(datas[2]);
+				clipnammo[ammosize]    = StringToInt(datas[3]);
 				SetTrieArray(WeaponsTrie, datas[0], clipnammo, array_size);
 			}
 		}
@@ -252,17 +250,6 @@ public OnWeaponSpawned(weapon)
 
 		// Just pass weapon owner, even if he is not yet exists
 		SetWeaponReservedAmmo(GetEntDataEnt2(weapon, m_hOwner), weapon, weapontype:init);
-
-		if (saveclips)
-		{
-			// Setup default weapon clips after a small delay, because spawn hook is way too fast for that
-			new Handle:data = INVALID_HANDLE;
-			CreateDataTimer(0.1, Timer_SetupDefaultClips, data, TIMER_FLAG_NO_MAPCHANGE);
-
-			// Write the weapontype to retrieve callback when timer was created
-			WritePackCell(data, weapontype:save);
-			WritePackCell(data, EntIndexToEntRef(weapon));
-		}
 	}
 }
 
@@ -373,12 +360,7 @@ public Action:CS_OnBuyCommand(client, const String:weapon[])
 	if (saveclips)
 	{
 		// Create a delay when player buys a weapon
-		new Handle:data = INVALID_HANDLE;
-		CreateDataTimer(0.1, Timer_SetupDefaultClips, data, TIMER_FLAG_NO_MAPCHANGE);
-
-		// It's required to setup weapon clips when weapon is just retrieved to player
-		WritePackCell(data, weapontype:pickup);
-		WritePackCell(data, GetClientSerial(client));
+		CreateTimer(0.1, Timer_PostBuyEquip, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
 
@@ -408,11 +390,12 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 		return Plugin_Stop;
 	}
 
-	// To find WeaponID in m_iAmmo array we should add multiplied m_iPrimaryAmmoType datamap offset by 4 onto m_iAmmo player array (meh)
+	// To find WeaponID in m_iAmmo array we should add multiplied m_iPrimaryAmmoType datamap offset by 4 onto m_iAmmo player array, meh
 	new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
 
 	// And get the current player ammo for this weapon
 	new currammo = GetEntData(client, m_iAmmo + (WeaponID * 4));
+	new realclip = GetEntData(weapon, m_iClip1), fixedammo;
 
 	// Timer is created twice for some reason when reload hook is fired, so this is a fix
 	static bool:reloaded[MAXPLAYERS + 1] = true;
@@ -430,13 +413,14 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 			}
 			if (saveclips)
 			{
-				// DONT correct new clip
-				/* if (newclip > oldclip)
-					newclip = oldclip
-				else  */
 				// Correct player ammo once during reloading
-				if (newclip < oldclip)
-					SetEntData(client, m_iAmmo + (WeaponID * 4), currammo + newclip);
+				if (newclip > oldclip)
+					fixedammo = currammo - (newclip - realclip);
+				else if (newclip < oldclip)
+					fixedammo = currammo + (oldclip - newclip);
+
+				// I had many issues with it
+				SetEntData(client, m_iAmmo + (WeaponID * 4), fixedammo);
 			}
 		}
 
@@ -448,8 +432,8 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 		// Plugin should save different clips?
 		if (saveclips && !reloaded[client])
 		{
-			// Yea, setup desired weapon clip after reloading
-			SetEntData(weapon, m_iClip1, newclip);
+			if (currammo + realclip >= newclip)
+				SetEntData(weapon, m_iClip1, newclip);
 		}
 
 		// Player has reloaded, stop timer
@@ -460,43 +444,15 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	return Plugin_Continue;
 }
 
-/* Timer_SetupDefaultClips()
+/* Timer_PostBuyCommand()
  *
  * Sets default weapon clips after they spawn.
  * ------------------------------------------------------------------ */
-public Action:Timer_SetupDefaultClips(Handle:timer, any:data)
+public Action:Timer_PostBuyEquip(Handle:timer, any:client)
 {
-	if (data == INVALID_HANDLE)
-	{
-		// Stop timer if data is invalid
-		LogError("Invalid data timer!");
-		return Plugin_Stop;
-	}
-
-	ResetPack(data);
-
-	new entity;
-
-	// Retrieve the callback where timer was created
-	switch (ReadPackCell(data))
-	{
-		// Timer was created at OnWeaponSpawn hook
-		case save:
-		{
-			// Convert entity reference to entity index, validate weapon and set default clip
-			if ((entity = EntRefToEntIndex(ReadPackCell(data))) != INVALID_ENT_REFERENCE)
-				SetWeaponClip(entity, weapontype:save);
-		}
-		// Timer was created after player has purchased weapon
-		case pickup:
-		{
-			// Set default clip for this!
-			if ((entity = GetClientFromSerial(ReadPackCell(data))))
-				SetSpawnAmmunition(entity, false);
-		}
-	}
-
-	return Plugin_Stop;
+	// Validate client
+	if ((client = GetClientFromSerial(client)))
+		SetSpawnAmmunition(client, false);
 }
 
 /* SetSpawnAmmunition()
@@ -505,15 +461,19 @@ public Action:Timer_SetupDefaultClips(Handle:timer, any:data)
  * ------------------------------------------------------------------ */
 SetSpawnAmmunition(client, bool:prehook)
 {
-	if (!enabled) return; // Loop through max game weapons to properly get all player weapons
-	for (new i; i < MAX_WEAPONS; i++)
+	// Yet again check if enabled
+	if (enabled)
 	{
-		new weapon  = -1;
-		if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
+		// Loop through max game weapons to properly get all player weapons
+		for (new i; i < MAX_WEAPONS; i++)
 		{
-			// On pre-spawn hook set m_iSecondaryAmmoType as default value
-			SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo
-			SetWeaponReservedAmmo(client, weapon, prehook ? init : pickup);
+			new weapon  = -1;
+			if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
+			{
+				// On pre-spawn hook set m_iSecondaryAmmoType as default value
+				SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo
+				SetWeaponReservedAmmo(client, weapon, prehook ? init : pickup);
+			}
 		}
 	}
 }
@@ -540,16 +500,6 @@ SetWeaponClip(weapon, type)
 		{
 			switch (type)
 			{
-				case save:
-				{
-					// Default clip size from array cannot be less than original
-					if (clipnammo[defaultclip] < GetEntData(weapon, m_iClip1))
-					{
-						// Correct the clip and save it in trie array
-						clipnammo[defaultclip] = GetEntData(weapon, m_iClip1);
-						SetTrieArray(WeaponsTrie, classname[prefixlength], clipnammo, sizeof(clipnammo));
-					}
-				}
 				case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
 				case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
 				case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size

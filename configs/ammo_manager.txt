@@ -1,58 +1,60 @@
 // Ammo Manager by Root.
 // How to setup ammunition for weapons:
 // 1) Add weapon classname without 'weapon_' prefix ('tf_weapon_' in TF2) at a new line.
-// 2) Then add a maximum clip size for this weapon (size should be less than original). Set to 0 if you dont know default value.
-// 3) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo_* convars override).
-// Example: ak47;30;120 will set 120 ammo for ak47. Symbol ; is case sensitive in configuring!
+// 2) Then add a default clip size for a weapon. It's recommended that you put proper value.
+// 3) Then add desired clip size for this weapon. You can set size to 0 if you dont know default value.
+// 4) Add desired maximum ammo for this weapon. Set to 0 to use defaults (will be actual 0 in CS:S and CS:GO due to ammo_* convars override).
+// Example: ak47;30;60;120 will set 60 ammo in a clip and 120 reserved for ak47. Symbol ; is case sensitive in configuring!
 // Note:
 // In CS:S/CS:GO its recommended to setup grenade limits via ammo_grenade_limit_* convars, because plugin gives X amount of grenades on their equip.
+// See all available weapon classnames here https://wiki.alliedmods.net/Weapon_Names(Source)
 
 // List of CS:S/CS:GO weapons and its settings.
 // Rifles
-famas;25;90
-m4a1;30;90
-m4a1-s;20;40 // CS:GO m4a1 with silencer
-galilar;35;90
-galil;35;90 // CS:S
-ak47;30;90
-ssg08;10;90
-aug;30;90
-sg550;20;90 // CS:S
-sg552;30;90 // CS:S
-sg556;30;90
-awp;10;30
-scar20;20;90
-g3sg1;20;90
+famas;25;25;90
+m4a1;30;30;90
+m4a1-s;20;20;40 // CS:GO m4a1 with silencer
+galilar;35;35;90
+galil;35;35;90 // CS:S
+ak47;30;30;90
+ssg08;10;10;90
+aug;30;30;90
+sg550;20;20;90 // CS:S
+sg552;30;30;90 // CS:S
+sg556;30;30;90
+awp;10;10;30
+scar20;20;20;90
+g3sg1;20;20;90
 
 // SMG's
-mp9;30;120
-mac10;30;100
-mp5navy;30;120 // CS:S
-mp7;30;120
-ump45;25;100
-tmp;30;120 // CS:S
-p90;50;100
-bizon;64;120
+mp9;30;30;120
+mac10;30;30;100
+mp5navy;30;30;120 // CS:S
+mp7;30;30;120
+ump45;25;25;100
+tmp;30;30;120 // CS:S
+p90;50;50;100
+bizon;64;64;120
 
 // Heavy
-nova;8;32
-m3;8;32 // CS:S
-xm1014;7;32
-mag7;5;32
-sawedoff;7;32
-m249;100;200
-negev;150;200
+nova;8;8;32
+m3;8;8;32 // CS:S
+xm1014;7;7;32
+mag7;5;5;32
+sawedoff;7;7;32
+m249;100;100;200
+negev;150;150;200
 
 // Pistols
-glock;20;120
-p250;13;52
-fiveseven;20;100
-deagle;7;35
-elite;30;120
-hkp2000;13;52
-hkp2000-s;12;24 // CS:GO usp with silencer
-tec9;32;120
-usp;12;100 // CS:S
+glock;20;20;120
+p250;13;13;52
+fiveseven;20;20;100
+deagle;7;7;35
+elite;30;30;120
+hkp2000;13;13;52
+hkp2000-s;12;12;24 // CS:GO usp with silencer
+tec9;32;32;120
+usp;12;12;100 // CS:S
 
 // Grenades/Other
 //hegrenade;1;1
@@ -60,37 +62,37 @@ usp;12;100 // CS:S
 //smokegrenade;1;1
 //molotov;1;1
 //decoy;1;1
-taser;1;0 // You can setup more ammo for taser as well
+taser;1;1;0 // You can setup more ammo for taser as well
 
 // List of DoD:S weapons and its settings.
 // Rifles
-garand;8;80
-k98;5;60
-spring;5;50
-k98_scoped;5;60
+garand;8;8;80
+k98;5;5;60
+spring;5;5;50
+k98_scoped;5;5;60
 
 // SMG's
-thompson;30;180
-mp40;30;180
-bar;20;240
-mp44;30;180
+thompson;30;30;180
+mp40;30;30;180
+bar;20;20;240
+mp44;30;30;180
 
 // Heavy
-30cal;150;300
-mg42;250;250
-bazooka;1;4
-pschreck;1;4
+30cal;150;150;300
+mg42;250;250;250
+bazooka;1;1;4
+pschreck;1;1;4
 
 // Pistols
-colt;7;14
-p38;8;16
-m1carbine;15;30
-c96;20;40
+colt;7;7;14
+p38;8;8;16
+m1carbine;15;15;30
+c96;20;20;40
 
 // Grenades
-smoke_us;1;1
-smoke_ger;1;1
-//frag_us;1;2
-//frag_ger;1;2
-riflegren_us;1;1 // 1 is actually equal to 2 in DoD:S (wtf bugs?)
-riflegren_ger;1;1
+smoke_us;1;1;1
+smoke_ger;1;1;1
+//frag_us;1;1;2
+//frag_ger;1;1;2
+riflegren_us;1;1;1 // 1 is actually equal to 2 in DoD:S (wtf bugs?)
+riflegren_ger;1;1;1
