@@ -214,7 +214,7 @@ public OnMapStart()
 	{
 		// No config, wtf? Restore ammo settings and properly disable plugin
 		RestoreAmmoSetup(false, true);
-		SetFailState("Unable to load plugin configuration file \"%s\"!", file);
+		SetFailState("Unable to load plugin configuration file \"%s\"!", filepath);
 	}
 
 	// Close config handle
@@ -229,7 +229,7 @@ public OnEntityCreated(entity, const String:classname[])
 {
 	decl dummy[1];
 
-	// Hook entity spawning if plugin is enabling and entity classname is exists in trie array
+	// Hook entity spawning if plugin is enabling and entity classname is exists in a trie
 	if (enabled && GetTrieArray(WeaponsTrie, classname[prefixlength], dummy, 0))
 	{
 		SDKHook(entity, SDKHook_SpawnPost, OnWeaponSpawned);
@@ -403,7 +403,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	// Does weapon is reloading at the moment?
 	if (bool:GetEntProp(weapon, Prop_Data, "m_bInReload", true))
 	{
-		// Check whether or not player got any ammo and haven't reloaded before
+		// Check if player got any ammo and haven't reloaded before
 		if (reloaded[client] && currammo)
 		{
 			if (realismreload)
@@ -411,7 +411,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				// Reset clip to 0 for realistic reload
 				SetEntData(weapon, m_iClip1, 0);
 			}
-			if (saveclips)
+			if (saveclips && newclip != oldclip)
 			{
 				// Correct player ammo once during reloading
 				if (newclip > oldclip)
@@ -419,7 +419,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				else if (newclip < oldclip)
 					fixedammo = currammo + (oldclip - newclip);
 
-				// I had many issues with it
+				// Shh about issue
 				SetEntData(client, m_iAmmo + (WeaponID * 4), fixedammo);
 			}
 		}
@@ -484,8 +484,8 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	// Does plugin should save weapon clips?
-	if (saveclips && IsValidEdict(weapon))
+	// Check if plugin is enabled
+	if (enabled && saveclips && IsValidEdict(weapon))
 	{
 		// Retrieve weapon classname
 		decl String:classname[64], clipnammo[array_size];
