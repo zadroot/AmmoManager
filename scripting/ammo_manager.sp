@@ -411,7 +411,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				// Reset clip to 0 for realistic reload
 				SetEntData(weapon, m_iClip1, 0);
 			}
-			if (saveclips && newclip != oldclip)
+			if (saveclips)
 			{
 				// Correct player ammo once during reloading
 				if (newclip > oldclip)
@@ -419,8 +419,8 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				else if (newclip < oldclip)
 					fixedammo = currammo + (oldclip - newclip);
 
-				// Shh about issue
-				SetEntData(client, m_iAmmo + (WeaponID * 4), fixedammo);
+				// fixedammo should != 0
+				if (fixedammo) SetEntData(client, m_iAmmo + (WeaponID * 4), fixedammo);
 			}
 		}
 
@@ -436,7 +436,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				SetEntData(weapon, m_iClip1, newclip);
 		}
 
-		// Player has reloaded, stop timer
+		// Player has reloaded - stop timer
 		reloaded[client] = true;
 		return Plugin_Stop;
 	}
