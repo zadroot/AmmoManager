@@ -13,7 +13,7 @@
 // Rifles
 famas;25;25;90
 m4a1;30;30;90
-m4a1-s;20;20;40 // CS:GO m4a1 with silencer
+m4a1_silencer;20;20;40 // CS:GO m4a1 with silencer
 galilar;35;35;90
 galil;35;35;90 // CS:S
 ak47;30;30;90
@@ -46,14 +46,15 @@ m249;100;100;200
 negev;150;150;200
 
 // Pistols
+cz75a;12;12;12
 glock;20;20;120
 p250;13;13;52
 fiveseven;20;20;100
 deagle;7;7;35
 elite;30;30;120
 hkp2000;13;13;52
-hkp2000-s;12;12;24 // CS:GO usp with silencer
 tec9;32;32;120
+usp_silencer;12;12;24 // CS:GO usp with silencer
 usp;12;12;100 // CS:S
 
 // Grenades/Other
@@ -94,5 +95,5 @@ smoke_us;1;1;1
 smoke_ger;1;1;1
 //frag_us;1;1;2
 //frag_ger;1;1;2
-riflegren_us;1;1;1 // 1 is actually equal to 2 in DoD:S (wtf bugs?)
+riflegren_us;1;1;1 // 1 is actually equal to 2 in DoD:S
 riflegren_ger;1;1;1

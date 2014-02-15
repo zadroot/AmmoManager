@@ -46,19 +46,21 @@ static const String:ammocvars[][] =
 	"ammo_762mm_max",
 	"ammo_9mm_max",
 	"ammo_buckshot_max",
-	"ammo_357sig_small_max", // Ammo for usp-s
-	"ammo_556mm_small_max" // And for m4a1-s (CS:GO)
+	"ammo_357sig_small_max", // Ammo for usp
+	"ammo_357sig_min_max", // Ammo for cz75a
+	"ammo_556mm_small_max" // And for m4a1 with silencer (CS:GO)
 };
 
 // ====[ VARIABLES ]================================================
 new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserved ammo
+	EngineVersion:CurrentVersion,
 	ammosetup[sizeof(ammocvars)], // Array to store original ammo convar values
 	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
 	bool:reserveammo, bool:realismreload,
-	m_iAmmo, m_hMyWeapons, m_hOwner, // Datamap offsets to setup ammunition
-	m_iClip1, m_iClip2, m_bSilencerOn,
+	m_iAmmo, m_hMyWeapons, // Datamap offsets to setup ammunition for player
+	m_hOwner, m_iClip1, m_iClip2, // Offsets to setup ammunition for weapons only
 	m_iPrimaryAmmoType, m_iSecondaryAmmoType,
-	prefixlength, MAX_AMMOCVARS, MAX_WEAPONS; // Max. bounds for ammo convars and m_hMyWeapons array datamap
+	prefixlength, MAX_AMMOCVARS, MAX_WEAPONS; // Maxbounds for ammo convars and m_hMyWeapons array datamap
 
 // ====[ PLUGIN ]===================================================
 public Plugin:myinfo =
@@ -111,19 +113,16 @@ public OnPluginStart()
 	prefixlength = 7;
 	MAX_WEAPONS  = 48;
 
-	new EngineVersion:version = GetEngineVersionCompat();
-	switch (version)
+	CurrentVersion = GetEngineVersionCompat();
+	switch (CurrentVersion)
 	{
 		case Engine_CSS, Engine_CSGO:
 		{
-			if (version == Engine_CSGO)
+			if (CurrentVersion == Engine_CSGO)
 			{
-				// Setup appropriate values for CS:GO
-				MAX_AMMOCVARS = 12;
+				// Setup appropriate max values for CS:GO
+				MAX_AMMOCVARS = 13;
 				MAX_WEAPONS   = 64;
-
-				// Find property offset to check whether or not weapon got the silencer
-				m_bSilencerOn = FindSendPropOffsEx("CWeaponCSBaseGun", "m_bSilencerOn");
 			}
 			else MAX_AMMOCVARS = 10; // Set MAX_AMMOCVARS for CS:S to 10
 
@@ -315,11 +314,18 @@ public OnWeaponEquipPost(client, weapon)
 public Action:OnWeaponReload(weapon)
 {
 	decl String:classname[64], clipnammo[array_size];
-	GetEdictClassname(weapon,  classname, sizeof(classname));
 
-	// Does silencer offset found and weapon got this initialized?
-	if (bool:m_bSilencerOn && GetEntData(weapon, m_bSilencerOn))
-		StrCat(classname, sizeof(classname), "-s");
+	// Retrieve weapon classname in 'if' statement, because it may fail at some time (c) KyleS
+	if (GetEdictClassname(weapon, classname, sizeof(classname)) && CurrentVersion == Engine_CSGO)
+	{
+		// Properly replace weapon classnames for CS:GO
+		switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
+		{
+			case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
+			case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
+			case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+		}
+	}
 
 	// Make sure this weapon is exists in Weapons Trie
 	if (GetTrieArray(WeaponsTrie, classname[prefixlength], clipnammo, array_size))
@@ -329,8 +335,12 @@ public Action:OnWeaponReload(weapon)
 		{
 			return Plugin_Handled;
 		}
-		else
+		else if (saveclips || realismreload) // optimizations
 		{
+			// Reset garand clipsize to 0 if realistic reload enabled (a DoD:S ReloadGarand perks)
+			if (realismreload && StrEqual(classname[7], "garand"))
+				SetEntData(weapon, m_iClip1, 0);
+
 			// Otherwise create timer to correct clipsize/ammo during reloading
 			new Handle:data = INVALID_HANDLE, client = GetEntDataEnt2(weapon, m_hOwner);
 			CreateDataTimer(0.1, Timer_FixAmmunition, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
@@ -341,10 +351,6 @@ public Action:OnWeaponReload(weapon)
 			WritePackCell(data, clipnammo[defaultclip]);
 			WritePackCell(data, clipnammo[clipsize]);
 		}
-
-		// Reset garand clipsize to 0 if realistic reload enabled (a DoD:S ReloadGarand-like perks)
-		if (realismreload && StrEqual(classname[7], "garand"))
-			SetEntData(weapon, m_iClip1, 0);
 	}
 
 	return Plugin_Continue;
@@ -391,10 +397,10 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	}
 
 	// To find WeaponID in m_iAmmo array we should add multiplied m_iPrimaryAmmoType datamap offset by 4 onto m_iAmmo player array, meh
-	new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
+	new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType) * 4;
 
 	// And get the current player ammo for this weapon
-	new currammo = GetEntData(client, m_iAmmo + (WeaponID * 4));
+	new currammo = GetEntData(client, m_iAmmo + WeaponID);
 	new realclip = GetEntData(weapon, m_iClip1), fixedammo;
 
 	// Timer is created twice for some reason when reload hook is fired, so this is a fix
@@ -419,8 +425,8 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 				else if (newclip < oldclip)
 					fixedammo = currammo + (oldclip - newclip);
 
-				// fixedammo should != 0
-				if (fixedammo) SetEntData(client, m_iAmmo + (WeaponID * 4), fixedammo);
+				// fixedammo should be more than 0
+				if (fixedammo) SetEntData(client, m_iAmmo + WeaponID, fixedammo);
 			}
 		}
 
@@ -465,10 +471,10 @@ SetSpawnAmmunition(client, bool:prehook)
 	if (enabled)
 	{
 		// Loop through max game weapons to properly get all player weapons
-		for (new i; i < MAX_WEAPONS; i++)
+		for (new i; i < MAX_WEAPONS; i+=4) // increase every offset by 4
 		{
 			new weapon  = -1;
-			if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + (i * 4))) != -1)
+			if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + i)) != -1)
 			{
 				// On pre-spawn hook set m_iSecondaryAmmoType as default value
 				SetWeaponClip(weapon, prehook ? init : pickup); // Otherwise set current ammo
@@ -489,20 +495,28 @@ SetWeaponClip(weapon, type)
 	{
 		// Retrieve weapon classname
 		decl String:classname[64], clipnammo[array_size];
-		GetEdictClassname(weapon,  classname, sizeof(classname));
-
-		// If weapon got silencer since spawn, add '-s' to end
-		if (bool:m_bSilencerOn && GetEntData(weapon, m_bSilencerOn))
-			StrCat(classname, sizeof(classname), "-s");
+		if (GetEdictClassname(weapon, classname, sizeof(classname)) && CurrentVersion == Engine_CSGO)
+		{
+			// Get the weapon definition index (hat fortress like)
+			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
+			{
+				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
+				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
+				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+			}
+		}
 
 		// Ignore first 7/10 characters in weapon string to avoid comparing with the prefix
 		if (GetTrieArray(WeaponsTrie, classname[prefixlength], clipnammo, array_size))
 		{
-			switch (type)
+			if (clipnammo[clipsize])
 			{
-				case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
-				case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
-				case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size
+				switch (type)
+				{
+					case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
+					case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
+					case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size
+				}
 			}
 		}
 	}
@@ -518,16 +532,23 @@ SetWeaponReservedAmmo(client, weapon, type)
 	if (reserveammo && IsValidEdict(weapon))
 	{
 		decl String:classname[64], clipnammo[array_size];
-		GetEdictClassname(weapon,  classname, sizeof(classname));
 
-		// Add '-s' to detect m4a1 and usp-s in CS:GO
-		if (bool:m_bSilencerOn && GetEntData(weapon, m_bSilencerOn))
-			StrCat(classname, sizeof(classname), "-s");
+		// Replace whole weapon string for CS:GO after checking definition index
+		if (GetEdictClassname(weapon, classname, sizeof(classname)) && CurrentVersion == Engine_CSGO)
+		{
+			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
+			{
+				// Index 60 is m4a1, 61 is usp and 63 is a cz75a appropriately
+				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
+				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
+				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+			}
+		}
 
 		if (GetTrieArray(WeaponsTrie, classname[prefixlength], clipnammo, array_size))
 		{
 			// Get the weapon ID to properly find it in m_iAmmo array
-			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType);
+			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType) * 4;
 
 			// If ammo value is not set ( = 0), dont do anything
 			if (clipnammo[ammosize])
@@ -536,8 +557,8 @@ SetWeaponReservedAmmo(client, weapon, type)
 				switch (type)
 				{
 					case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
-					case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + (WeaponID * 4)));
-					case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + (WeaponID * 4), GetEntData(weapon, m_iSecondaryAmmoType)); // Retrieve it
+					case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + WeaponID));
+					case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, GetEntData(weapon, m_iSecondaryAmmoType)); // Retrieve it
 				}
 			}
 		}
@@ -553,8 +574,7 @@ RestoreAmmoSetup(bool:value, bool:toggled)
 	if (toggled) enabled = value; // Plugin has toggled? set enabled value then
 	else     reserveammo = value; // Otherwise seems like reserved ammo has changed
 
-	new EngineVersion:version = GetEngineVersionCompat();
-	switch (version)
+	switch (CurrentVersion)
 	{
 		case Engine_CSS, Engine_CSGO:
 		{
@@ -579,7 +599,7 @@ FindSendPropOffsEx(const String:serverClass[64], const String:propName[64])
 	// Disable plugin if a networkable send property offset was not found
 	if (offset <= 0)
 	{
-		SetFailState("Unable to find offset \"%s::%s\"!", serverClass, propName);
+		SetFailState("Unable to find offset \"%s::%s\" !", serverClass, propName);
 	}
 
 	return offset;
