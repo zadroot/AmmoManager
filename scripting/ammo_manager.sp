@@ -109,9 +109,10 @@ public OnPluginStart()
 	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not enable realistic reload mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
 	CloseHandle(registar);
 
-	// I assume other games (such as DoD:S) got 'weapon_' prefix and 48 weapons
-	prefixlength = 7;
-	MAX_WEAPONS  = 48;
+	// I assume other games (such as DoD:S) got 'weapon_' prefix and 48 weapons max
+	prefixlength  = 7;
+	MAX_WEAPONS   = 48;
+	MAX_AMMOCVARS = 10;
 
 	CurrentVersion = GetEngineVersionCompat();
 	switch (CurrentVersion)
@@ -120,11 +121,10 @@ public OnPluginStart()
 		{
 			if (CurrentVersion == Engine_CSGO)
 			{
-				// Setup appropriate max values for CS:GO
-				MAX_AMMOCVARS = 13;
+				// Setup appropriate globals for CS:GO engine
+				MAX_AMMOCVARS += 3; // CS:GO got 3 more ammo convars
 				MAX_WEAPONS   = 64;
 			}
-			else MAX_AMMOCVARS = 10; // Set MAX_AMMOCVARS for CS:S to 10
 
 			// Loop though all cvars
 			for (new i; i < MAX_AMMOCVARS; i++)
@@ -139,7 +139,7 @@ public OnPluginStart()
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
 		}
-		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars long
+		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars longer
 	}
 
 	WeaponsTrie = CreateTrie();
@@ -435,7 +435,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	}
 	else // Player is not reloading anymore
 	{
-		// Plugin should save different clips?
+		// Plugin should save different clips
 		if (saveclips && !reloaded[client])
 		{
 			if (currammo + realclip >= newclip)
@@ -599,7 +599,7 @@ FindSendPropOffsEx(const String:serverClass[64], const String:propName[64])
 	// Disable plugin if a networkable send property offset was not found
 	if (offset <= 0)
 	{
-		SetFailState("Unable to find offset \"%s::%s\" !", serverClass, propName);
+		SetFailState("Unable to find offset \"%s::%s\"!", serverClass, propName);
 	}
 
 	return offset;
