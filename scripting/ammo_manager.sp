@@ -25,7 +25,7 @@ enum weapontype
 	pickup
 };
 
-enum ammotype // values in trie array
+enum ammotype // trie array values
 {
 	defaultclip, // original clip size
 	clipsize,    // desired clip size
@@ -60,7 +60,7 @@ new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserv
 	m_iAmmo, m_hMyWeapons, // Datamap offsets to setup ammunition for player
 	m_hOwner, m_iClip1, m_iClip2, // Offsets to setup ammunition for weapons only
 	m_iPrimaryAmmoType, m_iSecondaryAmmoType,
-	prefixlength, MAX_AMMOCVARS, MAX_WEAPONS; // Maxbounds for ammo convars and m_hMyWeapons array datamap
+	prefixlength, MAX_AMMOCVARS, MAX_WEAPONS; // Max. bound for ammo convars and m_hMyWeapons array datamap
 
 // ====[ PLUGIN ]===================================================
 public Plugin:myinfo =
@@ -121,18 +121,18 @@ public OnPluginStart()
 		{
 			if (CurrentVersion == Engine_CSGO)
 			{
-				// Setup appropriate globals for CS:GO engine
-				MAX_AMMOCVARS += 3; // CS:GO got 3 more ammo convars
+				// Setup appropriate values for CS:GO
+				MAX_AMMOCVARS += 3; // CS:GO got 3 more ammo convars than CS:S
 				MAX_WEAPONS   = 64;
 			}
 
 			// Loop though all cvars
 			for (new i; i < MAX_AMMOCVARS; i++)
 			{
-				// Cache default convar value
+				// Save default convar values
 				ammosetup[i] = GetConVarInt(FindConVar(ammocvars[i]));
 
-				// Set all ammo values to 0. Its required to properly set reserved ammo settings for weapons (i.e. dont override)
+				// Set all values to 0. Its required to properly set reserved ammo settings for weapons (i.e. dont override)
 				SetConVarBool(FindConVar(ammocvars[i]), false);
 
 				// Hook ammo convars changes
@@ -404,7 +404,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	new realclip = GetEntData(weapon, m_iClip1), fixedammo;
 
 	// Timer is created twice for some reason when reload hook is fired, so this is a fix
-	static bool:reloaded[MAXPLAYERS + 1] = true;
+	static bool:reloaded[MAXPLAYERS + 1] = { true, ... }; // Set boolean to true by default for all players
 
 	// Does weapon is reloading at the moment?
 	if (bool:GetEntProp(weapon, Prop_Data, "m_bInReload", true))
@@ -456,7 +456,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
  * ------------------------------------------------------------------ */
 public Action:Timer_PostBuyEquip(Handle:timer, any:client)
 {
-	// Validate client
+	// Validate client in delayed callback
 	if ((client = GetClientFromSerial(client)))
 		SetSpawnAmmunition(client, false);
 }
@@ -471,7 +471,7 @@ SetSpawnAmmunition(client, bool:prehook)
 	if (enabled)
 	{
 		// Loop through max game weapons to properly get all player weapons
-		for (new i; i < MAX_WEAPONS; i+=4) // increase every offset by 4
+		for (new i; i < MAX_WEAPONS; i += 4) // increase every offset by 4 units
 		{
 			new weapon  = -1;
 			if ((weapon = GetEntDataEnt2(client, m_hMyWeapons + i)) != -1)
@@ -490,14 +490,14 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	// Check if plugin is enabled
+	// Check if plugin is enabled as well here
 	if (enabled && saveclips && IsValidEdict(weapon))
 	{
 		// Retrieve weapon classname
 		decl String:classname[64], clipnammo[array_size];
 		if (GetEdictClassname(weapon, classname, sizeof(classname)) && CurrentVersion == Engine_CSGO)
 		{
-			// Get the weapon definition index (hat fortress like)
+			// Get the weapon definition index (like in hat fortress)
 			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
 			{
 				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
@@ -550,10 +550,10 @@ SetWeaponReservedAmmo(client, weapon, type)
 			// Get the weapon ID to properly find it in m_iAmmo array
 			new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType) * 4;
 
-			// If ammo value is not set ( = 0), dont do anything
+			// If ammo value is not set (= 0) dont do anything
 			if (clipnammo[ammosize])
 			{
-				// Retrieve ammunition type (when its created, dropped or picked)
+				// Retrieve ammunition type when weapon is created, dropped or picked
 				switch (type)
 				{
 					case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
