@@ -298,17 +298,13 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 		// Correct player ammo after player respawning
 		SetSpawnAmmunition(client, false);
 	}
-	else if ((attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // Get attacker uid
+	else if ((replenish || restock) && (attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // Get attacker uid on death event
 	{
-		// If free for all mode is active, ignore team check and refill ammo immediately
+		// If free for all mode is active - ignore team check on kill
 		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
 		{
-			// Get the active attacker weapon
-			new weapon = GetEntDataEnt2(attacker, m_hActiveWeapon);
-
-			// Set weapon clip or restock ammo appropriately
-			if (replenish) SetWeaponClip(weapon, weapontype:replen);
-			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:replen);
+			// Refill player ammo after a small delay, because some bullets may be shot even after killing
+			CreateTimer(0.1, Timer_PostEquip, GetClientSerial(attacker)|(_:replen << 16), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 }
@@ -394,7 +390,7 @@ public Action:CS_OnBuyCommand(client, const String:weapon[])
 	if (saveclips)
 	{
 		// Create a delay when player buys a weapon
-		CreateTimer(0.1, Timer_PostBuyEquip, GetClientSerial(client), TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(0.1, Timer_PostEquip, GetClientSerial(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
 
@@ -420,9 +416,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 
 	// If weapon reference or client is invalid, stop timer immediately
 	if (weapon == INVALID_ENT_REFERENCE || !client)
-	{
 		return Plugin_Stop;
-	}
 
 	// To find WeaponID in m_iAmmo array we should add multiplied m_iPrimaryAmmoType datamap offset by 4 onto m_iAmmo player array, meh
 	new WeaponID = GetEntData(weapon, m_iPrimaryAmmoType) * 4;
@@ -479,15 +473,31 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	return Plugin_Continue;
 }
 
-/* Timer_PostBuyCommand()
+/* Timer_PostEquip()
  *
- * Sets default weapon clips after they spawn.
+ * Sets weapon clip and reserved ammo on certain events.
  * ------------------------------------------------------------------ */
-public Action:Timer_PostBuyEquip(Handle:timer, any:client)
+public Action:Timer_PostEquip(Handle:timer, any:data)
 {
+	new client = data & 0x0000FFFF;
+	new type   = data >> 16;
+
 	// Validate client in delayed callback
 	if ((client = GetClientFromSerial(client)))
-		SetSpawnAmmunition(client, false);
+	{
+		// Get the type of post equip ammunition
+		switch (type)
+		{
+			case replen: // Replenish weapon ammo after a kill
+			{
+				// Get the active player weapon and set its ammo appropriately
+				new weapon = GetEntDataEnt2(client, m_hActiveWeapon);
+				if (replenish) SetWeaponClip(weapon, weapontype:replen);
+				if (restock)   SetWeaponReservedAmmo(client, weapon, weapontype:replen);
+			}
+			case pickup: SetSpawnAmmunition(client, false); // CS_OnBuyCommand
+		}
+	}
 }
 
 /* SetSpawnAmmunition()
@@ -545,7 +555,7 @@ SetWeaponClip(weapon, type)
 					case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
 					case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
 					case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size
-					case replen: SetEntData(weapon, m_iClip1, clipnammo[clipsize]); // When player kills another, set weapon clip from trie array
+					case replen: SetEntData(weapon, m_iClip1, clipnammo[clipsize]); // When player kills another, get the clip value from trie and set it for weapon immediately
 				}
 			}
 		}
@@ -588,7 +598,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 					case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
 					case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + WeaponID));
 					case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, GetEntData(weapon, m_iSecondaryAmmoType)); // Retrieve it
-					case replen: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, clipnammo[ammosize]); // Get reserved ammo value from trie and just fill weapon ammo
+					case replen: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, clipnammo[ammosize]); // Get desired max ammo value from trie and just set reserved ammo for this type of weapon
 				}
 			}
 		}
