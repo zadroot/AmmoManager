@@ -2,9 +2,9 @@
 * Ammo Manager by Root
 *
 * Description:
-*   Allows to setup different clips and reserved ammo for any weapons as well as enabling realistic reload.
+*   Allows to setup different clips and reserved ammo for any weapons as well as enabling ammo refill and realistic reload.
 *
-* Version 1.0
+* Version 1.1
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -16,7 +16,7 @@
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.1"
 
 enum weapontype
 {
@@ -57,6 +57,7 @@ new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserv
 	ammosetup[sizeof(ammocvars)], // Array to store original ammo convar values
 	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
 	bool:reserveammo, bool:realismreload,
+	bool:replenish, bool:freeforall,
 	m_iAmmo, m_hMyWeapons, // Datamap offsets to setup ammunition for player
 	m_hOwner, m_iClip1, m_iClip2, // Offsets to setup ammunition for weapons only
 	m_iPrimaryAmmoType, m_iSecondaryAmmoType,
@@ -67,7 +68,7 @@ public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
 	author      = "Root",
-	description = "Allows to setup different clips and reserved ammo for any weapons as well as enabling realistic reload",
+	description = "Allows to setup different clips and reserved ammo for any weapons as well as enabling ammo refill and realistic reload",
 	version     = PLUGIN_VERSION,
 	url         = "http://dodsplugins.com/",
 }
@@ -107,6 +108,8 @@ public OnPluginStart()
 	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set clip size (experimental)", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not enable realistic reload mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_refill",  "0", "Whether or not replen weapon ammo on kill",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); replenish     = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_ffa",     "0", "Whether or not use ffa mode for ammo replen", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); freeforall    = GetConVarBool(registar);
 	CloseHandle(registar);
 
 	// I assume other games (such as DoD:S) got 'weapon_' prefix and 48 weapons max
@@ -142,6 +145,9 @@ public OnPluginStart()
 		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars longer
 	}
 
+	// Hook post spawn and death player events
+	HookEvent("player_spawn", OnPlayerEvents);
+	HookEvent("player_death", OnPlayerEvents);
 	WeaponsTrie = CreateTrie();
 	AutoExecConfig();
 }
@@ -163,6 +169,8 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 		case 'c': saveclips      = bool:StringToInt(newValue);
 		case 'e': RestoreAmmoSetup(bool:StringToInt(newValue), false); // only reserved ammo has been changed
 		case 'l': realismreload  = bool:StringToInt(newValue);
+		case 'i': replenish      = bool:StringToInt(newValue);
+		default:  freeforall     = bool:StringToInt(newValue);
 	}
 }
 
@@ -260,7 +268,6 @@ public OnClientPutInServer(client)
 {
 	// Use both spawn hooks as a backend if equipment did not changed
 	SDKHook(client, SDKHook_Spawn,           OnPlayerSpawn);
-	SDKHook(client, SDKHook_SpawnPost,       OnPlayerSpawnPost);
 	SDKHook(client, SDKHook_WeaponDropPost,  OnWeaponDropPost);
 	SDKHook(client, SDKHook_WeaponEquipPost, OnWeaponEquipPost);
 }
@@ -269,20 +276,33 @@ public OnClientPutInServer(client)
  *
  * Called when the player spawns.
  * ------------------------------------------------------------------ */
-public Action:OnPlayerSpawn(client)
+public OnPlayerSpawn(client)
 {
 	// Set ammunition before player equips a weapon
 	SetSpawnAmmunition(client, true);
 }
 
-/* OnPlayerSpawnPost()
+/* OnPlayerEvents()
  *
- * Called after the player spawns.
+ * Called after player spawns or kills another.
  * ------------------------------------------------------------------ */
-public OnPlayerSpawnPost(client)
+public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	// And correct ammo after player spawns
-	SetSpawnAmmunition(client, false);
+	new client = GetClientOfUserId(GetEventInt(event, "userid")), attacker;
+
+	if (name[7] == 's')
+	{
+		// Correct ammo after player spawns
+		SetSpawnAmmunition(client, false);
+	}
+	else if (replenish && (attacker = GetClientOfUserId(GetEventInt(event, "attacker"))))
+	{
+		// If FFA is enabled, ignore team check and refill ammo immediate on kill
+		if (freeforall || GetClientTeam(attacker) != GetClientTeam(client))
+		{
+			SetSpawnAmmunition(client, true);
+		}
+	}
 }
 
 /* OnWeaponDropPost()
