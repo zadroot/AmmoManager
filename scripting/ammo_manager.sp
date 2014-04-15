@@ -520,8 +520,8 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	// Check if plugin is enabled as well here
-	if (enabled && saveclips && IsValidEdict(weapon))
+	// Make sure plugin is enabled, and at least clip saving/ammo replenishment is enabled too
+	if (enabled && (saveclips || replenish) && IsValidEdict(weapon))
 	{
 		// Retrieve weapon classname
 		decl String:classname[64], clipnammo[array_size];
@@ -558,8 +558,8 @@ SetWeaponClip(weapon, type)
  * ------------------------------------------------------------------ */
 SetWeaponReservedAmmo(client, weapon, type)
 {
-	// Validate weapon
-	if (reserveammo && IsValidEdict(weapon))
+	// Reserved ammo/restock should be enabled
+	if ((reserveammo || restock) && IsValidEdict(weapon))
 	{
 		decl String:classname[64], clipnammo[array_size];
 
