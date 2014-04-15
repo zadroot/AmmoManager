@@ -2,7 +2,7 @@
 * Ammo Manager by Root
 *
 * Description:
-*   Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenish and realistic reload.
+*   Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenishment and realistic reload.
 *
 * Version 1.2
 * Changelog & more info at http://goo.gl/4nKhJ
@@ -69,7 +69,7 @@ public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
 	author      = "Root",
-	description = "Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenish and realistic reload",
+	description = "Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenishment and realistic reload",
 	version     = PLUGIN_VERSION,
 	url         = "http://dodsplugins.com/",
 }
@@ -148,9 +148,8 @@ public OnPluginStart()
 		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars long
 	}
 
-	// Hook even when player spawns as well as when player dies
-	HookEvent("player_spawn", OnPlayerEvents);
-	HookEvent("player_death", OnPlayerEvents);
+	// When the player dies
+	HookEvent("player_death", OnPlayerDeath);
 	WeaponsTrie = CreateTrie();
 	AutoExecConfig();
 }
@@ -283,27 +282,28 @@ public OnPlayerSpawn(client)
 {
 	// Set ammunition before player equips a weapon
 	SetSpawnAmmunition(client, true);
+
+	// When player just spawns, create a timer to give proper ammo after the player spawns
+	CreateTimer(0.1, Timer_PostEquip, GetClientSerial(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
 }
 
-/* OnPlayerEvents()
+/* OnPlayerDeath()
  *
- * Called after player spawns or kills another.
+ * Called after player dies.
  * ------------------------------------------------------------------ */
-public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
+public OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	new client = GetClientOfUserId(GetEventInt(event, "userid")), attacker;
+	// Make sure plugin is enabled, and at least refill or restock is enabled too
+	if (enabled && (replenish || restock))
+	{
+		// Get the attacker and a victim from event
+		new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+		new client   = GetClientOfUserId(GetEventInt(event, "userid"));
 
-	if (name[7] == 's') // player_spawn
-	{
-		// Correct player ammo after player respawning
-		SetSpawnAmmunition(client, false);
-	}
-	else if ((replenish || restock) && (attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // Get attacker uid on death event
-	{
-		// If free for all mode is active - ignore team check on kill
+		// If free for all mode is active, ignore team check on killing
 		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
 		{
-			// Refill player ammo after a small delay, because some bullets may be shot even after killing
+			// Refill player ammo after a small delay, because some bullets may be shot even after a killing
 			CreateTimer(0.1, Timer_PostEquip, GetClientSerial(attacker)|(_:replen << 16), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
@@ -488,14 +488,14 @@ public Action:Timer_PostEquip(Handle:timer, any:data)
 		// Get the type of post equip ammunition
 		switch (type)
 		{
-			case replen: // Replenish weapon ammo after a kill
+			case replen: // Replenish weapon ammo after player death
 			{
 				// Get the active player weapon and set its ammo appropriately
 				new weapon = GetEntDataEnt2(client, m_hActiveWeapon);
 				if (replenish) SetWeaponClip(weapon, weapontype:replen);
 				if (restock)   SetWeaponReservedAmmo(client, weapon, weapontype:replen);
 			}
-			case pickup: SetSpawnAmmunition(client, false); // CS_OnBuyCommand
+			default: SetSpawnAmmunition(client, false); // Either OnPlayerSpawn or CS_OnBuyCommand has fired
 		}
 	}
 }
