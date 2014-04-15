@@ -293,17 +293,17 @@ public OnPlayerSpawn(client)
  * ------------------------------------------------------------------ */
 public OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	// Make sure plugin is enabled, and at least refill or restock is enabled too
+	// Make sure plugin is enabled, and at least refill or restock is enabled too (optimizations)
 	if (enabled && (replenish || restock))
 	{
-		// Get the attacker and a victim from event
+		// Get the attacker and a victim user ids from event keys
 		new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 		new client   = GetClientOfUserId(GetEventInt(event, "userid"));
 
-		// If free for all mode is active, ignore team check on killing
-		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
+		// Make sure attacker and victim is valid, and if FFA is activated, ignore team check on killing
+		if ((attacker && client) && (ffa || GetClientTeam(attacker) != GetClientTeam(client)))
 		{
-			// Refill player ammo after a small delay, because some bullets may be shot even after a killing
+			// Refill player ammo after a small delay, because some bullets may be shot after
 			CreateTimer(0.1, Timer_PostEquip, GetClientSerial(attacker)|(_:replen << 16), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
@@ -482,7 +482,7 @@ public Action:Timer_PostEquip(Handle:timer, any:data)
 	new client = data & 0x0000FFFF;
 	new type   = data >> 16;
 
-	// Validate client in delayed callback
+	// Always validate client from delayed callbacks (timers etc...)
 	if ((client = GetClientFromSerial(client)))
 	{
 		// Get the type of post equip ammunition
