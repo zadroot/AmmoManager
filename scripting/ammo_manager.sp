@@ -292,15 +292,15 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 
 	if (name[7] == 's')
 	{
-		// Correct ammo after player spawns
+		// Correct ammo on player spawn
 		SetSpawnAmmunition(client, false);
 	}
 	else if (replenish && (attacker = GetClientOfUserId(GetEventInt(event, "attacker"))))
 	{
-		// If FFA is enabled, ignore team check and refill ammo immediate on kill
+		// If FFA is enabled, ignore team check and refill ammo immediately on kill
 		if (freeforall || GetClientTeam(attacker) != GetClientTeam(client))
 		{
-			SetSpawnAmmunition(client, true);
+			SetSpawnAmmunition(attacker, true);
 		}
 	}
 }
