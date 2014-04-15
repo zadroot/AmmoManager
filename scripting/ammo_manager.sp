@@ -2,9 +2,9 @@
 * Ammo Manager by Root
 *
 * Description:
-*   Allows to setup different clips and reserved ammo for any weapons as well as enabling ammo refill and realistic reload.
+*   Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenish and realistic reload.
 *
-* Version 1.1
+* Version 1.2
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -16,7 +16,7 @@
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.2"
 
 enum weapontype
 {
@@ -57,8 +57,8 @@ new	Handle:WeaponsTrie, // Trie array to save weapon names, its clips and reserv
 	ammosetup[sizeof(ammocvars)], // Array to store original ammo convar values
 	bool:enabled, bool:saveclips, // Global booleans to use instead of global handles
 	bool:reserveammo, bool:realismreload,
-	bool:replenish, bool:freeforall,
-	m_iAmmo, m_hMyWeapons, // Datamap offsets to setup ammunition for player
+	bool:replenish, bool:restock, bool:ffa,
+	m_iAmmo, m_hMyWeapons, m_hActiveWeapon, // Datamap offsets to setup ammunition for player
 	m_hOwner, m_iClip1, m_iClip2, // Offsets to setup ammunition for weapons only
 	m_iPrimaryAmmoType, m_iSecondaryAmmoType,
 	prefixlength, MAX_AMMOCVARS, MAX_WEAPONS; // Max. bound for ammo convars and m_hMyWeapons array datamap
@@ -68,7 +68,7 @@ public Plugin:myinfo =
 {
 	name        = PLUGIN_NAME,
 	author      = "Root",
-	description = "Allows to setup different clips and reserved ammo for any weapons as well as enabling ammo refill and realistic reload",
+	description = "Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenish and realistic reload",
 	version     = PLUGIN_VERSION,
 	url         = "http://dodsplugins.com/",
 }
@@ -93,6 +93,7 @@ public OnPluginStart()
 	// Find and store offsets properly, because those will be used a bit often
 	m_iAmmo              = FindSendPropOffsEx("CBasePlayer",       "m_iAmmo");
 	m_hMyWeapons         = FindSendPropOffsEx("CBasePlayer",       "m_hMyWeapons");
+	m_hActiveWeapon      = FindSendPropOffsEx("CBasePlayer",       "m_hActiveWeapon");
 	m_hOwner             = FindSendPropOffsEx("CBaseCombatWeapon", "m_hOwner");
 	m_iClip1             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip1");
 	m_iClip2             = FindSendPropOffsEx("CBaseCombatWeapon", "m_iClip2");
@@ -108,8 +109,9 @@ public OnPluginStart()
 	HookConVarChange((registar = CreateConVar("sm_ammo_setclip", "0", "Whether or not set clip size (experimental)", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); saveclips     = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_reserve", "1", "Whether or not set reserved ammo settings",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); reserveammo   = GetConVarBool(registar);
 	HookConVarChange((registar = CreateConVar("sm_ammo_realism", "0", "Whether or not enable realistic reload mode", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); realismreload = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_refill",  "0", "Whether or not replen weapon ammo on kill",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); replenish     = GetConVarBool(registar);
-	HookConVarChange((registar = CreateConVar("sm_ammo_ffa",     "0", "Whether or not use ffa mode for ammo replen", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); freeforall    = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_refill",  "0", "Whether or not refill weapon clip on kill",   FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); replenish     = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_restock", "0", "Whether or not restock weapon ammo on kill",  FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); restock       = GetConVarBool(registar);
+	HookConVarChange((registar = CreateConVar("sm_ammo_ffa",     "0", "Whether or not use ffa mode for ammo replen", FCVAR_PLUGIN, true, 0.0, true, 1.0)), OnConVarChange); ffa           = GetConVarBool(registar);
 	CloseHandle(registar);
 
 	// I assume other games (such as DoD:S) got 'weapon_' prefix and 48 weapons max
@@ -142,10 +144,10 @@ public OnPluginStart()
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
 		}
-		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars longer
+		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars long
 	}
 
-	// Hook post spawn and death player events
+	// Hook spawn and death player events (post)
 	HookEvent("player_spawn", OnPlayerEvents);
 	HookEvent("player_death", OnPlayerEvents);
 	WeaponsTrie = CreateTrie();
@@ -170,7 +172,8 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 		case 'e': RestoreAmmoSetup(bool:StringToInt(newValue), false); // only reserved ammo has been changed
 		case 'l': realismreload  = bool:StringToInt(newValue);
 		case 'i': replenish      = bool:StringToInt(newValue);
-		default:  freeforall     = bool:StringToInt(newValue);
+		case 't': restock        = bool:StringToInt(newValue);
+		default:  ffa            = bool:StringToInt(newValue);
 	}
 }
 
@@ -292,15 +295,22 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 
 	if (name[7] == 's')
 	{
-		// Correct ammo on player spawn
+		// Correct player ammo after respawning
 		SetSpawnAmmunition(client, false);
 	}
-	else if (replenish && (attacker = GetClientOfUserId(GetEventInt(event, "attacker"))))
+	else if ((attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // player_death
 	{
-		// If FFA is enabled, ignore team check and refill ammo immediately on kill
-		if (freeforall || GetClientTeam(attacker) != GetClientTeam(client))
+		// If free for all mode is active - ignore team check and refill ammo immediately
+		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
 		{
-			SetSpawnAmmunition(attacker, true);
+			// Get the active attacker weapon
+			new weapon = GetEntDataEnt2(attacker, m_hActiveWeapon);
+
+			// If replenishment is enabled, refill weapon clip
+			if (replenish) SetWeaponClip(weapon, weapontype:init);
+
+			// Same way for reserved ammo restock. Just fill all reserved ammo
+			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:init);
 		}
 	}
 }
