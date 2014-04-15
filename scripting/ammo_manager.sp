@@ -300,14 +300,14 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 	}
 	else if ((attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // player_death
 	{
-		// If free for all mode is active - ignore team check and refill ammo immediately
+		// If free for all mode is active, ignore team check and refill ammo immediately
 		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
 		{
 			// Get the active attacker weapon
 			new weapon = GetEntDataEnt2(attacker, m_hActiveWeapon);
 
-			// If replenishment is enabled, refill weapon clip
-			if (replenish) SetWeaponClip(weapon, weapontype:init);
+			// Set weapon clip like when player picks weapon
+			if (replenish) SetWeaponClip(weapon, weapontype:pickup);
 
 			// Same way for reserved ammo restock. Just fill all reserved ammo
 			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:init);
@@ -520,7 +520,7 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	// Make sure plugin is enabled, and at least clip saving/ammo replenishment is enabled too
+	// Make sure plugin is enabled(?) and at least clip saving/ammo replenishment is enabled too
 	if (enabled && (saveclips || replenish) && IsValidEdict(weapon))
 	{
 		// Retrieve weapon classname
@@ -558,7 +558,7 @@ SetWeaponClip(weapon, type)
  * ------------------------------------------------------------------ */
 SetWeaponReservedAmmo(client, weapon, type)
 {
-	// Reserved ammo/restock should be enabled
+	// Check if reserved ammo/restock enabled
 	if ((reserveammo || restock) && IsValidEdict(weapon))
 	{
 		decl String:classname[64], clipnammo[array_size];
