@@ -22,7 +22,8 @@ enum weapontype
 {
 	init,
 	drop,
-	pickup
+	pickup,
+	replen
 };
 
 enum ammotype // trie array values
@@ -147,7 +148,7 @@ public OnPluginStart()
 		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars long
 	}
 
-	// Hook spawn and death player events (post)
+	// Hook even when player spawns as well as when player dies
 	HookEvent("player_spawn", OnPlayerEvents);
 	HookEvent("player_death", OnPlayerEvents);
 	WeaponsTrie = CreateTrie();
@@ -227,7 +228,6 @@ public OnMapStart()
 		SetFailState("Unable to load plugin configuration file \"%s\"!", filepath);
 	}
 
-	// Close config handle
 	CloseHandle(file);
 }
 
@@ -293,12 +293,12 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	new client = GetClientOfUserId(GetEventInt(event, "userid")), attacker;
 
-	if (name[7] == 's')
+	if (name[7] == 's') // player_spawn
 	{
-		// Correct player ammo after respawning
+		// Correct player ammo after player respawning
 		SetSpawnAmmunition(client, false);
 	}
-	else if ((attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // player_death
+	else if ((attacker = GetClientOfUserId(GetEventInt(event, "attacker")))) // Get attacker uid
 	{
 		// If free for all mode is active, ignore team check and refill ammo immediately
 		if (ffa || GetClientTeam(attacker) != GetClientTeam(client))
@@ -306,11 +306,9 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 			// Get the active attacker weapon
 			new weapon = GetEntDataEnt2(attacker, m_hActiveWeapon);
 
-			// Set weapon clip like when player pick up weapon
-			if (replenish) SetWeaponClip(weapon, weapontype:pickup);
-
-			// Same way for reserved ammo restock, type must be 'pickup'
-			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:pickup);
+			// Set weapon clip or restock ammo appropriately
+			if (replenish) SetWeaponClip(weapon, weapontype:replen);
+			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:replen);
 		}
 	}
 }
@@ -456,7 +454,8 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 					fixedammo = currammo + (oldclip - newclip);
 
 				// fixedammo should be more than 0
-				if (fixedammo) SetEntData(client, m_iAmmo + WeaponID, fixedammo);
+				if (fixedammo)
+					SetEntData(client, m_iAmmo + WeaponID, fixedammo);
 			}
 		}
 
@@ -497,7 +496,7 @@ public Action:Timer_PostBuyEquip(Handle:timer, any:client)
  * ------------------------------------------------------------------ */
 SetSpawnAmmunition(client, bool:prehook)
 {
-	// Yet again check if enabled
+	// I wont loop every time player spawns, so check if plugin is enabled firstly
 	if (enabled)
 	{
 		// Loop through max game weapons to properly get all player weapons
@@ -520,7 +519,7 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	// Make sure plugin is enabled(?) and at least clip saving/ammo replenishment is enabled too
+	// Make sure plugin is enabled and at least clip saving/ammo replenishment is enabled too
 	if (enabled && (saveclips || replenish) && IsValidEdict(weapon))
 	{
 		// Retrieve weapon classname
@@ -546,6 +545,7 @@ SetWeaponClip(weapon, type)
 					case init:   SetEntData(weapon, m_iClip2, clipnammo[clipsize]); // When weapon just spawned, set m_iClip2 value to clip size from trie array
 					case drop:   SetEntData(weapon, m_iClip2, GetEntData(weapon, m_iClip1)); // After dropping a weapon, set m_iClip2 value same as current (m_iClip1) size
 					case pickup: SetEntData(weapon, m_iClip1, GetEntData(weapon, m_iClip2)); // And when weapon is picked, retrieve m_iClip2 value and set current clip size
+					case replen: SetEntData(weapon, m_iClip1, clipnammo[clipsize]); // When player kills another, set weapon clip from trie array
 				}
 			}
 		}
@@ -558,7 +558,7 @@ SetWeaponClip(weapon, type)
  * ------------------------------------------------------------------ */
 SetWeaponReservedAmmo(client, weapon, type)
 {
-	// Put enable check here as well
+	// Make sure plugin is enabled as well as whether or not resrved/restock is enabled too
 	if (enabled && (reserveammo || restock) && IsValidEdict(weapon))
 	{
 		decl String:classname[64], clipnammo[array_size];
@@ -568,7 +568,6 @@ SetWeaponReservedAmmo(client, weapon, type)
 		{
 			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
 			{
-				// Index 60 is m4a1, 61 is usp and 63 is a cz75a appropriately
 				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
 				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
 				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
@@ -589,6 +588,7 @@ SetWeaponReservedAmmo(client, weapon, type)
 					case init:   SetEntData(weapon, m_iSecondaryAmmoType, clipnammo[ammosize]); // Initialize reserved ammunition in unused m_iSecondaryAmmoType datamap offset
 					case drop:   if (IsClientInGame(client)) SetEntData(weapon, m_iSecondaryAmmoType, GetEntData(client, m_iAmmo + WeaponID));
 					case pickup: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, GetEntData(weapon, m_iSecondaryAmmoType)); // Retrieve it
+					case replen: if (IsClientInGame(client)) SetEntData(client, m_iAmmo + WeaponID, clipnammo[ammosize]); // Get reserved ammo value from trie and just fill weapon ammo
 				}
 			}
 		}
@@ -608,7 +608,7 @@ RestoreAmmoSetup(bool:value, bool:toggled)
 	{
 		case Engine_CSS, Engine_CSGO:
 		{
-			// Again loop through all game cvars
+			// Again loop through all ammo cvars
 			for (new i; i < MAX_AMMOCVARS; i++)
 			{
 				// Set ammo cvar values to 0 if plugin is enabled, otherwise set original ammo values for all cstrike cvars
