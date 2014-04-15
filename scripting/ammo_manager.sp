@@ -306,10 +306,10 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 			// Get the active attacker weapon
 			new weapon = GetEntDataEnt2(attacker, m_hActiveWeapon);
 
-			// Set weapon clip like when player picks weapon
+			// Set weapon clip like when player pick up weapon
 			if (replenish) SetWeaponClip(weapon, weapontype:pickup);
 
-			// Same way for reserved ammo restock. weapontype must be pickup
+			// Same way for reserved ammo restock, type must be 'pickup'
 			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:pickup);
 		}
 	}
@@ -558,8 +558,8 @@ SetWeaponClip(weapon, type)
  * ------------------------------------------------------------------ */
 SetWeaponReservedAmmo(client, weapon, type)
 {
-	// Check if reserved ammo/restock enabled
-	if ((reserveammo || restock) && IsValidEdict(weapon))
+	// Put enable check here as well
+	if (enabled && (reserveammo || restock) && IsValidEdict(weapon))
 	{
 		decl String:classname[64], clipnammo[array_size];
 
