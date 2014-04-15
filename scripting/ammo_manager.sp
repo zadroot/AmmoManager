@@ -309,8 +309,8 @@ public OnPlayerEvents(Handle:event, const String:name[], bool:dontBroadcast)
 			// Set weapon clip like when player picks weapon
 			if (replenish) SetWeaponClip(weapon, weapontype:pickup);
 
-			// Same way for reserved ammo restock. Just fill all reserved ammo
-			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:init);
+			// Same way for reserved ammo restock. weapontype must be pickup
+			if (restock)   SetWeaponReservedAmmo(attacker, weapon, weapontype:pickup);
 		}
 	}
 }
