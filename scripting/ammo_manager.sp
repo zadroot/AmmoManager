@@ -4,7 +4,7 @@
 * Description:
 *   Allows to setup different clips/reserved ammo for any weapons as well as enabling ammo replenishment and realistic reload.
 *
-* Version 1.2
+* Version 1.3
 * Changelog & more info at http://goo.gl/4nKhJ
 */
 
@@ -16,7 +16,7 @@
 
 // ====[ CONSTANTS ]================================================
 #define PLUGIN_NAME    "Ammo Manager"
-#define PLUGIN_VERSION "1.2"
+#define PLUGIN_VERSION "1.3"
 
 enum weapontype
 {
@@ -287,7 +287,7 @@ public OnPlayerSpawn(client)
 		SetSpawnAmmunition(client, true);
 
 		// When player just spawns, create a timer to give proper ammo after the player spawns
-		CreateTimer(0.1, Timer_PostEquip, GetClientSerial(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(0.1, Timer_PostEquip, GetClientUserId(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
 
@@ -301,14 +301,15 @@ public OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 	if (enabled && (replenish || restock))
 	{
 		// Get the attacker and a victim user ids from event keys
-		new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-		new client   = GetClientOfUserId(GetEventInt(event, "userid"));
+		new attackerID = GetEventInt(event, "attacker");
+		new attacker   = GetClientOfUserId(attackerID);
+		new client     = GetClientOfUserId(GetEventInt(event, "userid"));
 
 		// Make sure attacker and victim is valid, and if FFA is activated - ignore team check on killing
 		if ((attacker && client) && (ffa || GetClientTeam(attacker) != GetClientTeam(client)))
 		{
 			// Refill player ammo after a small delay, because some bullets may be shot after
-			CreateTimer(0.1, Timer_PostEquip, GetClientSerial(attacker)|(_:replen << 16), TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(0.1, Timer_PostEquip, attackerID|(_:replen << 16), TIMER_FLAG_NO_MAPCHANGE);
 		}
 	}
 }
@@ -381,9 +382,9 @@ public Action:OnWeaponReload(weapon)
 				new Handle:data = INVALID_HANDLE, client = GetEntDataEnt2(weapon, m_hOwner);
 				CreateDataTimer(0.1, Timer_FixAmmunition, data, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 
-				// Add entity reference, client serial and weapon clips in data timer
+				// Add entity reference, client uid and weapon clips in data timer
 				WritePackCell(data, EntIndexToEntRef(weapon));
-				WritePackCell(data, GetClientSerial(client));
+				WritePackCell(data, GetClientUserId(client));
 				WritePackCell(data, clipnammo[defaultclip]);
 				WritePackCell(data, clipnammo[clipsize]);
 			}
@@ -403,7 +404,7 @@ public Action:CS_OnBuyCommand(client, const String:weapon[])
 	if (enabled && saveclips)
 	{
 		// Create a delay when player buys weapon
-		CreateTimer(0.1, Timer_PostEquip, GetClientSerial(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
+		CreateTimer(0.1, Timer_PostEquip, GetClientUserId(client)|(_:pickup << 16), TIMER_FLAG_NO_MAPCHANGE);
 	}
 }
 
@@ -423,7 +424,7 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 
 	// Retrieve all the data from timer
 	new weapon  = EntRefToEntIndex(ReadPackCell(data));
-	new client  = GetClientFromSerial(ReadPackCell(data));
+	new client  = GetClientOfUserId(ReadPackCell(data));
 	new oldclip = ReadPackCell(data);
 	new newclip = ReadPackCell(data);
 
@@ -496,16 +497,15 @@ public Action:Timer_PostEquip(Handle:timer, any:data)
 	new type   = data >> 16;
 
 	// Always validate client from delayed callbacks (timers etc...)
-	if ((client = GetClientFromSerial(client)))
+	if ((client = GetClientOfUserId(client)))
 	{
 		// Get the type of post equip ammunition
 		switch (type)
 		{
-			case replen: // Replenish weapon ammo after the victim dies
+			case replen: // Replen weapon ammo after a kill
 			{
 				// Get the active player weapon and set its ammo appropriately
 				new weapon = GetEntDataEnt2(client, m_hActiveWeapon);
-
 				if (replenish) SetWeaponClip(weapon, weapontype:replen);
 				if (restock)   SetWeaponReservedAmmo(client, weapon, weapontype:replen);
 			}
