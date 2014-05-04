@@ -145,11 +145,12 @@ public OnPluginStart()
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
 		}
-		case Engine_TF2: prefixlength = 10; // Because TF2 got 'tf_weapon_' prefix, which is 10 chars long
+		case Engine_TF2: prefixlength += 3; // Because TF2 got 'tf_weapon_' prefix, which is 3 chars longer
 	}
 
-	// Hook event when player dies (for refill and restock features)
+	// Hook death (for refill and restock features)
 	HookEvent("player_death", OnPlayerDeath);
+
 	WeaponsTrie = CreateTrie();
 	AutoExecConfig();
 }
@@ -184,8 +185,7 @@ public OnConVarChange(Handle:convar, const String:oldValue[], const String:newVa
 public OnAmmoSettingsChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
 	// If plugin is enabled and should set reserved ammo, reset changes
-	if (enabled && reserveammo)
-		SetConVarBool(convar, false);
+	if (enabled && reserveammo) SetConVarBool(convar, false);
 }
 
 /* OnMapStart()
@@ -358,9 +358,9 @@ public Action:OnWeaponReload(weapon)
 			// Properly replace weapon classnames for CS:GO
 			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
 			{
-				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
-				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
-				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+				case 60: classname = "weapon_m4a1_silencer";
+				case 61: classname = "weapon_usp_silencer";
+				case 63: classname = "weapon_cz75a";
 			}
 		}
 
@@ -439,14 +439,17 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 	new currammo = GetEntData(client, m_iAmmo + WeaponID);
 	new realclip = GetEntData(weapon, m_iClip1), fixedammo;
 
-	// Timer is created twice for some reason when reload hook is fired, so this is a fix
-	static bool:reloaded[MAXPLAYERS + 1] = { true, ... }; // Set boolean to true by default for all players
+	// Create some static variables for proper reloading stuff
+	static lastweapon[MAXPLAYERS + 1], bool:reloading[MAXPLAYERS + 1];
 
 	// Does weapon is reloading at the moment?
 	if (bool:GetEntProp(weapon, Prop_Data, "m_bInReload", true))
 	{
+		// Store index of weapon that is reloading now
+		lastweapon[client] = weapon;
+
 		// Check if player got any ammo and haven't reloaded before
-		if (reloaded[client] && currammo)
+		if (!reloading[client] && currammo)
 		{
 			if (realismreload)
 			{
@@ -468,19 +471,26 @@ public Action:Timer_FixAmmunition(Handle:event, any:data)
 		}
 
 		// Set boolean to make sure that clip has been set and ammo corrected once
-		reloaded[client] = false;
+		reloading[client] = true;
 	}
 	else // Player is not reloading anymore
 	{
-		// Plugin should save different clips
-		if (saveclips && !reloaded[client])
+		// If player is not reloading anymore, check whether or not he's just switched weapon during reload
+		if (lastweapon[client] == GetEntDataEnt2(client, m_hActiveWeapon))
 		{
-			if (currammo + realclip >= newclip)
-				SetEntData(weapon, m_iClip1, newclip);
+			// It's needed to compare a weapons which is started and ended reloading
+			if (saveclips && reloading[client])
+			{
+				// Plugin should save different clips
+				if (currammo + realclip >= newclip)
+					SetEntData(weapon, m_iClip1, newclip);
+			}
 		}
 
-		// Player has reloaded - stop timer
-		reloaded[client] = true;
+		// Reset static variables within a timer
+		lastweapon[client] = reloading[client] = false;
+
+		// Also stop it because gun is already reloaded
 		return Plugin_Stop;
 	}
 
@@ -548,9 +558,9 @@ SetWeaponClip(weapon, type)
 			// Get the weapon definition index (like in hat fortress)
 			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
 			{
-				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
-				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
-				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+				case 60: classname = "weapon_m4a1_silencer";
+				case 61: classname = "weapon_usp_silencer";
+				case 63: classname = "weapon_cz75a";
 			}
 		}
 
@@ -587,9 +597,9 @@ SetWeaponReservedAmmo(client, weapon, type)
 		{
 			switch (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex"))
 			{
-				case 60: strcopy(classname, sizeof(classname), "weapon_m4a1_silencer");
-				case 61: strcopy(classname, sizeof(classname), "weapon_usp_silencer");
-				case 63: strcopy(classname, sizeof(classname), "weapon_cz75a");
+				case 60: classname = "weapon_m4a1_silencer";
+				case 61: classname = "weapon_usp_silencer";
+				case 63: classname = "weapon_cz75a";
 			}
 		}
 
