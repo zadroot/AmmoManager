@@ -132,25 +132,24 @@ public OnPluginStart()
 				MAX_WEAPONS   = 64;
 			}
 
-			// Loop though all cvars
+			// Loop through all cstrike ammo convars
 			for (new i; i < MAX_AMMOCVARS; i++)
 			{
-				// Save default convar values
+				// Store default ammo values and hook its changes
 				ammosetup[i] = GetConVarInt(FindConVar(ammocvars[i]));
-
-				// Set all values to 0. Its required to properly set reserved ammo settings for weapons (i.e. dont override)
-				SetConVarBool(FindConVar(ammocvars[i]), false);
-
-				// Hook ammo convars changes
 				HookConVarChange(FindConVar(ammocvars[i]), OnAmmoSettingsChanged);
 			}
+
+			// Manually trigger ammo setup on startup
+			RestoreAmmoSetup(enabled, reserveammo);
 		}
-		case Engine_TF2: prefixlength += 3; // Because TF2 got 'tf_weapon_' prefix, which is 3 chars longer
+		case Engine_TF2: prefixlength += 3; // Because TF2 got 'tf_weapon_' prefix (which is 3 chars longer)
 	}
 
 	// Hook death (for refill and restock features)
 	HookEvent("player_death", OnPlayerDeath);
 
+	// Create most important thing - a trie structure
 	WeaponsTrie = CreateTrie();
 	AutoExecConfig();
 }
@@ -227,6 +226,7 @@ public OnMapStart()
 		SetFailState("Unable to load plugin configuration file \"%s\"!", filepath);
 	}
 
+	// Close a config handle
 	CloseHandle(file);
 }
 
@@ -549,7 +549,8 @@ SetSpawnAmmunition(client, bool:prehook)
  * ------------------------------------------------------------------ */
 SetWeaponClip(weapon, type)
 {
-	if (IsValidEdict(weapon))
+	// Make sure weapon edict is valid
+	if (weapon > MaxClients)
 	{
 		// Retrieve weapon classname
 		decl String:classname[64], clipnammo[array_size];
@@ -587,8 +588,7 @@ SetWeaponClip(weapon, type)
  * ------------------------------------------------------------------ */
 SetWeaponReservedAmmo(client, weapon, type)
 {
-	// Make sure weapon entity is valid
-	if (IsValidEdict(weapon))
+	if (weapon > MaxClients)
 	{
 		decl String:classname[64], clipnammo[array_size];
 
